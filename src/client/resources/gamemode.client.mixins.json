@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"package": "com.urntt.gamemode.mixin",
+	"compatibilityLevel": "JAVA_${java_version}",
+	"client": [
+		"AbstractClientPlayerMixin",
+		"ClientPacketListenerMixin",
+		"KeyboardHandlerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

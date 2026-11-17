@@ -1,0 +1,40 @@
+{
+	"schemaVersion": 1,
+	"id": "gamemode",
+	"version": "${version}",
+	"name": "gamemode",
+	"description": "Changes the local player's game mode on the client without asking the server.",
+	"authors": [
+		"urntt"
+	],
+	"contact": {
+		"homepage": "https://github.com/urntt/gamemode",
+		"sources": "https://github.com/urntt/gamemode",
+		"issues": "https://github.com/urntt/gamemode/issues"
+	},
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"com.urntt.gamemode.GameModeClient"
+		],
+		"modmenu": [
+			"com.urntt.gamemode.compat.ModMenuIntegration"
+		]
+	},
+	"mixins": [
+		{
+			"config": "gamemode.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=${loader_version}",
+		"minecraft": "~${minecraft_version}",
+		"java": ">=${java_version}",
+		"fabric-api": ">=${fabric_api_version}"
+	},
+	"suggests": {
+		"modmenu": "*"
+	}
+}

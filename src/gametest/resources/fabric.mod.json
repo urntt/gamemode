@@ -1,0 +1,17 @@
+{
+	"schemaVersion": 1,
+	"id": "gamemode-gametest",
+	"version": "0.0.0",
+	"name": "gamemode game tests",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"com.urntt.gamemode.gametest.GameModeLogicGameTest",
+			"com.urntt.gamemode.gametest.GameModeSingleplayerGameTest",
+			"com.urntt.gamemode.gametest.GameModeMultiplayerGameTest"
+		]
+	},
+	"depends": {
+		"gamemode": "*"
+	}
+}
