@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.0.0+26.3] - 2026-11-17
+
 ### Added
 
 - `/gamemode <mode> @c` sets a client game mode that only the client uses, whatever the player's permissions are. Choosing the server's game mode ends it. `/gamemode @c` shows the client and server game modes with clickable game modes.
