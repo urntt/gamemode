@@ -4,19 +4,21 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
 import com.urntt.gamemode.GameModeClient;
+import com.urntt.gamemode.compat.OneConfigBridge;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.loader.api.FabricLoader;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The mod's settings, persisted as JSON. Every change is written to disk immediately.
+ * The mod's own settings and the configuration mode, persisted as JSON. Every change is written to disk immediately.
  */
-public final class GameModeConfig {
+public final class GameModeConfig implements GameModeSettings {
 	private static final Logger LOGGER = LoggerFactory.getLogger(GameModeClient.MOD_ID);
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
@@ -37,12 +39,12 @@ public final class GameModeConfig {
 
 	/**
 	 * Loads the configuration from {@code path}. A missing file is created with the defaults. A readable file is
-	 * rewritten with any settings it lacks. An unreadable file falls back to the defaults and is left untouched
-	 * until the next change is saved.
+	 * rewritten with any settings it lacks and without those it no longer uses. An unreadable file falls back to the
+	 * defaults and is left untouched until the next change is saved.
 	 */
 	public static GameModeConfig load(final Path path) {
 		if (Files.notExists(path)) {
-			GameModeConfig config = new GameModeConfig(path, new Settings());
+			GameModeConfig config = new GameModeConfig(path, new Settings().normalized());
 			config.save();
 			return config;
 		}
@@ -52,29 +54,46 @@ public final class GameModeConfig {
 			settings = GSON.fromJson(Files.readString(path), Settings.class);
 		} catch (IOException | JsonParseException e) {
 			LOGGER.warn("Failed to read config file {}, using defaults", path, e);
-			return new GameModeConfig(path, new Settings());
+			return new GameModeConfig(path, new Settings().normalized());
 		}
 
-		if (settings == null) {
-			settings = new Settings();
-		}
-		settings.normalize();
-		GameModeConfig config = new GameModeConfig(path, settings);
+		GameModeConfig config = new GameModeConfig(path, (settings != null ? settings : new Settings()).normalized());
 		config.save();
 		return config;
 	}
 
-	/** The state of the whole mod, as toggled by the key binding: whether client game modes may be used. */
-	public boolean isEnabled() {
-		return this.settings.enabled;
+	/** The mode stored in the file, which may name OneConfig even while OneConfig is not installed. */
+	public ConfigMode storedMode() {
+		return this.settings.mode;
 	}
 
-	public void setEnabled(final boolean enabled) {
-		this.settings.enabled = enabled;
+	/** The mode that applies: OneConfig mode falls back to custom settings while OneConfig is not available. */
+	public ConfigMode effectiveMode() {
+		ConfigMode mode = this.settings.mode;
+		return mode == ConfigMode.ONECONFIG && !OneConfigBridge.isAvailable() ? ConfigMode.CUSTOM : mode;
+	}
+
+	/** The settings that apply in the {@linkplain #effectiveMode() effective mode}. */
+	public GameModeSettings effective() {
+		return switch (this.effectiveMode()) {
+			case DISABLED -> SettingValues.DISABLED;
+			case CUSTOM -> this;
+			case ONECONFIG -> OneConfigBridge.settings().orElse(this);
+		};
+	}
+
+	public void setMode(final ConfigMode mode) {
+		this.settings.mode = mode;
 		this.save();
 	}
 
-	/** Whether a change of the server's game mode ends the client game mode. */
+	/** The mod's own settings are always enabled; Disabled mode turns client game modes off. */
+	@Override
+	public boolean enabled() {
+		return true;
+	}
+
+	@Override
 	public boolean followServerChanges() {
 		return this.settings.followServerChanges;
 	}
@@ -84,46 +103,7 @@ public final class GameModeConfig {
 		this.save();
 	}
 
-	/** The state a reset restores in singleplayer worlds. */
-	public boolean singleplayerDefault() {
-		return this.settings.singleplayerDefault;
-	}
-
-	public void setSingleplayerDefault(final boolean singleplayerDefault) {
-		this.settings.singleplayerDefault = singleplayerDefault;
-		this.save();
-	}
-
-	/** The state a reset restores on multiplayer servers that the multiplayer mode allows. */
-	public boolean multiplayerDefault() {
-		return this.settings.multiplayerDefault;
-	}
-
-	public void setMultiplayerDefault(final boolean multiplayerDefault) {
-		this.settings.multiplayerDefault = multiplayerDefault;
-		this.save();
-	}
-
-	/** Whether every world starts from its default state. */
-	public boolean resetOnWorldExit() {
-		return this.settings.resetOnWorldExit;
-	}
-
-	public void setResetOnWorldExit(final boolean resetOnWorldExit) {
-		this.settings.resetOnWorldExit = resetOnWorldExit;
-		this.save();
-	}
-
-	/** Whether the first world after starting the game starts from its default state. */
-	public boolean resetOnGameExit() {
-		return this.settings.resetOnGameExit;
-	}
-
-	public void setResetOnGameExit(final boolean resetOnGameExit) {
-		this.settings.resetOnGameExit = resetOnGameExit;
-		this.save();
-	}
-
+	@Override
 	public MultiplayerMode multiplayerMode() {
 		return this.settings.multiplayerMode;
 	}
@@ -133,14 +113,14 @@ public final class GameModeConfig {
 		this.save();
 	}
 
-	/** The server list used by the whitelist and blacklist modes. */
+	@Override
 	public List<String> servers() {
 		return List.copyOf(this.settings.servers);
 	}
 
 	public void setServers(final List<String> servers) {
 		this.settings.servers = new ArrayList<>(servers);
-		this.settings.normalize();
+		this.settings.normalized();
 		this.save();
 	}
 
@@ -157,31 +137,46 @@ public final class GameModeConfig {
 	 * The serialized form. Field initializers are the defaults, which also apply to keys missing from the file.
 	 */
 	private static final class Settings {
-		private boolean enabled = true;
-		private boolean followServerChanges = true;
-		private boolean singleplayerDefault = true;
-		private boolean multiplayerDefault = true;
-		private boolean resetOnWorldExit = false;
-		private boolean resetOnGameExit = false;
-		private MultiplayerMode multiplayerMode = MultiplayerMode.DISABLED;
-		private List<String> servers = new ArrayList<>();
+		/** {@code null} only while loading a file without a mode, which {@link #normalized()} replaces. */
+		private @Nullable ConfigMode mode;
+		/**
+		 * The on/off state of version 1.0.0, which had no modes. Only read, to start such a file in Disabled mode if
+		 * the mod was off; Gson leaves it out of the file once it is {@code null}.
+		 */
+		private @Nullable Boolean enabled;
+		private boolean followServerChanges = SettingValues.DEFAULTS.followServerChanges();
+		private MultiplayerMode multiplayerMode = SettingValues.DEFAULTS.multiplayerMode();
+		private List<String> servers = new ArrayList<>(SettingValues.DEFAULTS.servers());
 
 		/**
-		 * Replaces values Gson could not map (unknown mode names, a missing list) and tidies the server list.
+		 * Picks the mode of a file without one, replaces values Gson could not map (unknown mode names, a missing
+		 * list) and tidies the server list.
 		 */
-		private void normalize() {
-			if (this.multiplayerMode == null) {
-				this.multiplayerMode = MultiplayerMode.DISABLED;
+		private Settings normalized() {
+			if (this.mode == null) {
+				this.mode = Boolean.FALSE.equals(this.enabled) ? ConfigMode.DISABLED : ConfigMode.CUSTOM;
 			}
-			List<String> entries = new ArrayList<>();
-			if (this.servers != null) {
-				for (String entry : this.servers) {
-					if (entry != null && !entry.isBlank()) {
-						entries.add(entry.trim());
-					}
+			this.enabled = null;
+			if (this.multiplayerMode == null) {
+				this.multiplayerMode = SettingValues.DEFAULTS.multiplayerMode();
+			}
+			this.servers = normalizedServers(this.servers);
+			return this;
+		}
+	}
+
+	/**
+	 * Trims the entries of a server list and drops blank ones.
+	 */
+	public static List<String> normalizedServers(final @Nullable List<String> servers) {
+		List<String> entries = new ArrayList<>();
+		if (servers != null) {
+			for (String entry : servers) {
+				if (entry != null && !entry.isBlank()) {
+					entries.add(entry.trim());
 				}
 			}
-			this.servers = entries;
 		}
+		return entries;
 	}
 }

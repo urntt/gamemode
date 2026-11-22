@@ -1,30 +1,23 @@
 package com.urntt.gamemode;
 
 import com.urntt.gamemode.config.GameModeConfig;
+import com.urntt.gamemode.config.GameModeSettings;
 import net.minecraft.world.level.GameType;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Decides whether the player may use a client game mode right now and which game mode the client uses, from the
- * configuration, the current {@link Scene} and the game modes the server sets. It is the only place that combines
- * the mod's state, the defaults, the reset rules, the multiplayer rules and the server-change rule. It holds no
+ * settings that apply in the configuration mode, the current {@link Scene} and the game modes the server sets. It is
+ * the only place that combines the configuration mode, the multiplayer rules and the server-change rule. It holds no
  * Minecraft state; {@link ClientGameMode} applies its decisions to the client.
  */
 public final class GameModeController {
 	/** Whether the player may set a client game mode in the current scene. */
 	public enum Availability {
 		AVAILABLE,
-		/** The multiplayer rules rule out the current scene. */
-		BLOCKED,
-		/** The player turned the mod off. */
-		TURNED_OFF
-	}
-
-	/** Outcome of {@link #toggle()}. */
-	public enum ToggleResult {
-		ENABLED,
+		/** Client game modes are turned off: Disabled mode, or OneConfig's toggle in OneConfig mode. */
 		DISABLED,
-		/** The multiplayer rules rule out the current scene, so the state was left unchanged. */
+		/** The multiplayer rules rule out the current scene. */
 		BLOCKED
 	}
 
@@ -34,10 +27,10 @@ public final class GameModeController {
 		CLIENT,
 		/** The game mode is the server's, so the client game mode ended and the client uses the server's again. */
 		SERVER,
+		/** Nothing changed: client game modes are turned off. */
+		DISABLED,
 		/** Nothing changed: the multiplayer rules rule out the current scene. */
-		BLOCKED,
-		/** Nothing changed: the mod is turned off. */
-		TURNED_OFF
+		BLOCKED
 	}
 
 	/** Outcome of {@link #onServerGameMode(GameType)}. */
@@ -52,7 +45,6 @@ public final class GameModeController {
 
 	private final GameModeConfig config;
 	private Scene scene = Scene.NONE;
-	private boolean allowedWorldJoinedSinceStart = false;
 	private @Nullable GameType clientGameMode;
 	private @Nullable GameType serverGameMode;
 
@@ -88,23 +80,11 @@ public final class GameModeController {
 	}
 
 	/**
-	 * Called when the player joins a world, after {@link #onLogin}. On an allowed scene, restores the scene's default
-	 * state if a reset rule applies: always with "reset on world exit", and for the first allowed world since the game
-	 * started with "reset on game exit". Applying the reset on join instead of on exit lets it pick the next scene's
-	 * default and also works after a crash.
+	 * Called when the player joins a world, after {@link #onLogin}.
 	 */
 	public void onJoin(final Scene scene) {
 		this.scene = scene;
 		this.clientGameMode = null;
-		if (!this.isAllowed()) {
-			return;
-		}
-
-		boolean firstWorld = !this.allowedWorldJoinedSinceStart;
-		this.allowedWorldJoinedSinceStart = true;
-		if (this.config.resetOnWorldExit() || (this.config.resetOnGameExit() && firstWorld)) {
-			this.config.setEnabled(this.defaultFor(scene));
-		}
 	}
 
 	public void onDisconnect() {
@@ -124,7 +104,7 @@ public final class GameModeController {
 		if (this.clientGameMode == null) {
 			return ServerChange.NO_CLIENT_GAME_MODE;
 		}
-		if (this.config.followServerChanges() && gameMode != previous) {
+		if (this.config.effective().followServerChanges() && gameMode != previous) {
 			this.clientGameMode = null;
 			return ServerChange.ENDED;
 		}
@@ -137,11 +117,11 @@ public final class GameModeController {
 	 */
 	public Selection select(final GameType gameMode) {
 		switch (this.availability()) {
+			case DISABLED -> {
+				return Selection.DISABLED;
+			}
 			case BLOCKED -> {
 				return Selection.BLOCKED;
-			}
-			case TURNED_OFF -> {
-				return Selection.TURNED_OFF;
 			}
 			case AVAILABLE -> {
 			}
@@ -155,8 +135,8 @@ public final class GameModeController {
 	}
 
 	/**
-	 * Ends the client game mode if client game modes are no longer available, for example after the mod was turned
-	 * off or the multiplayer rules changed. Returns whether it ended one.
+	 * Ends the client game mode if client game modes are no longer available, for example after the configuration
+	 * mode or the multiplayer rules changed. Returns whether it ended one.
 	 */
 	public boolean endIfUnavailable() {
 		if (this.clientGameMode != null && this.availability() != Availability.AVAILABLE) {
@@ -167,49 +147,37 @@ public final class GameModeController {
 	}
 
 	/**
-	 * Returns whether the player may set a client game mode now, and if not, why. The multiplayer rules come first,
-	 * because they apply whatever the mod's state is.
+	 * Returns whether the player may set a client game mode now, and if not, why. Being turned off comes first,
+	 * because it applies everywhere.
 	 */
 	public Availability availability() {
-		if (!this.isAllowed()) {
-			return Availability.BLOCKED;
+		GameModeSettings settings = this.config.effective();
+		if (!settings.enabled()) {
+			return Availability.DISABLED;
 		}
-		return this.config.isEnabled() ? Availability.AVAILABLE : Availability.TURNED_OFF;
+		return this.isAllowed(settings) ? Availability.AVAILABLE : Availability.BLOCKED;
 	}
 
 	/**
-	 * Returns whether the multiplayer rules allow client game modes in the current scene.
+	 * Returns whether the multiplayer rules that apply allow client game modes in the current scene.
 	 */
 	public boolean isAllowed() {
+		return this.isAllowed(this.config.effective());
+	}
+
+	private boolean isAllowed(final GameModeSettings settings) {
 		return switch (this.scene) {
 			case Scene.None none -> false;
 			case Scene.Singleplayer singleplayer -> true;
-			case Scene.Multiplayer multiplayer -> switch (this.config.multiplayerMode()) {
+			case Scene.Multiplayer multiplayer -> switch (settings.multiplayerMode()) {
 				case DISABLED -> false;
-				case WHITELIST -> this.isListed(multiplayer.address());
-				case BLACKLIST -> !this.isListed(multiplayer.address());
+				case WHITELIST -> isListed(settings, multiplayer.address());
+				case BLACKLIST -> !isListed(settings, multiplayer.address());
 			};
 		};
 	}
 
-	/**
-	 * Flips and saves the state of the whole mod, unless the current server is not allowed. Turning it off does not
-	 * end the client game mode by itself; {@link #endIfUnavailable()} does.
-	 */
-	public ToggleResult toggle() {
-		if (this.scene instanceof Scene.Multiplayer && !this.isAllowed()) {
-			return ToggleResult.BLOCKED;
-		}
-		boolean enabled = !this.config.isEnabled();
-		this.config.setEnabled(enabled);
-		return enabled ? ToggleResult.ENABLED : ToggleResult.DISABLED;
-	}
-
-	private boolean defaultFor(final Scene scene) {
-		return scene instanceof Scene.Singleplayer ? this.config.singleplayerDefault() : this.config.multiplayerDefault();
-	}
-
-	private boolean isListed(final @Nullable String address) {
-		return address != null && this.config.servers().stream().anyMatch(entry -> ServerAddresses.matches(entry, address));
+	private static boolean isListed(final GameModeSettings settings, final @Nullable String address) {
+		return address != null && settings.servers().stream().anyMatch(entry -> ServerAddresses.matches(entry, address));
 	}
 }

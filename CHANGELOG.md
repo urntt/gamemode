@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A configuration mode, the first button of the settings screen: **Disabled** turns client game modes off everywhere, **Custom** (the default) applies the settings on the screen, and **OneConfig** applies the settings registered with [OneConfig](https://modrinth.com/mod/oneconfig). OneConfig is optional, and its mode is only offered while it is installed; the screen then shows OneConfig's values greyed out and links to them.
+
+### Changed
+
+- The settings screen only holds the mode, **Follow Server Changes**, the multiplayer mode and the server list. Outside custom mode, the settings are greyed out and show the values that apply.
+- A configuration file from 1.0.0 keeps its other settings and starts in Disabled mode if the mod was turned off.
+
+### Removed
+
+- The **Client Game Mode** on/off setting and the **Toggle gamemode** key binding; Disabled mode replaces them.
+- The singleplayer and server defaults and the **Reset on World Exit** and **Reset on Game Exit** rules.
+
 ## [1.0.0+26.3] - 2026-11-17
 
 ### Added

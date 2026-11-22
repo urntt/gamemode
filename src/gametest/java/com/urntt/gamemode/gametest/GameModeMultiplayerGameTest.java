@@ -1,7 +1,6 @@
 package com.urntt.gamemode.gametest;
 
 import static com.urntt.gamemode.gametest.GameTestSupport.LOGGER;
-import static com.urntt.gamemode.gametest.GameTestSupport.bindKey;
 import static com.urntt.gamemode.gametest.GameTestSupport.check;
 import static com.urntt.gamemode.gametest.GameTestSupport.checkClientUses;
 import static com.urntt.gamemode.gametest.GameTestSupport.clearMessages;
@@ -12,12 +11,12 @@ import static com.urntt.gamemode.gametest.GameTestSupport.requireMessageWith;
 import static com.urntt.gamemode.gametest.GameTestSupport.requireNoMessageWith;
 import static com.urntt.gamemode.gametest.GameTestSupport.serverGameMode;
 import static com.urntt.gamemode.gametest.GameTestSupport.typeCommand;
-import static com.urntt.gamemode.gametest.GameTestSupport.unbindKey;
 
 import com.urntt.gamemode.ClientGameMode;
 import com.urntt.gamemode.GameModeClient;
 import com.urntt.gamemode.Scene;
 import com.urntt.gamemode.command.ClientGameModeCommands;
+import com.urntt.gamemode.config.ConfigMode;
 import com.urntt.gamemode.config.MultiplayerMode;
 import com.urntt.gamemode.switcher.ClientGameModeSwitcherScreen;
 import java.util.List;
@@ -26,7 +25,6 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestDedicatedServerConnection;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestDedicatedServerContext;
 import net.minecraft.client.CameraType;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.world.level.GameType;
 
 /**
@@ -40,11 +38,10 @@ public final class GameModeMultiplayerGameTest implements FabricClientGameTest {
 	public void runTest(final ClientGameTestContext context) {
 		listenForMessages(context);
 		configure(context, config -> {
-			config.setEnabled(true);
+			config.setMode(ConfigMode.CUSTOM);
 			config.setMultiplayerMode(MultiplayerMode.DISABLED);
 			config.setServers(List.of());
 		});
-		KeyMapping toggleKey = bindKey(context, GameModeClient.TOGGLE_KEY_NAME, "key.keyboard.j");
 
 		try (TestDedicatedServerContext server = context.worldBuilder().createServer();
 				TestDedicatedServerConnection connection = server.connect()) {
@@ -56,7 +53,7 @@ public final class GameModeMultiplayerGameTest implements FabricClientGameTest {
 			check(scene instanceof Scene.Multiplayer, "a dedicated server should count as multiplayer, got " + scene);
 
 			checkCommandTreeWithoutPermission(context);
-			checkDisabledByDefault(context, server, toggleKey);
+			checkDisabledByDefault(context, server);
 			checkWhitelisted(context, server);
 			checkWithPermission(context, server);
 		}
@@ -65,7 +62,6 @@ public final class GameModeMultiplayerGameTest implements FabricClientGameTest {
 			config.setMultiplayerMode(MultiplayerMode.DISABLED);
 			config.setServers(List.of());
 		});
-		unbindKey(context, toggleKey);
 	}
 
 	/**
@@ -109,8 +105,7 @@ public final class GameModeMultiplayerGameTest implements FabricClientGameTest {
 	 * With the default multiplayer mode, nothing changes the client game mode and nothing reaches the server, while
 	 * the status still works.
 	 */
-	private static void checkDisabledByDefault(final ClientGameTestContext context, final TestDedicatedServerContext server,
-			final KeyMapping toggleKey) {
+	private static void checkDisabledByDefault(final ClientGameTestContext context, final TestDedicatedServerContext server) {
 		clearMessages(context);
 		typeCommand(context, "gamemode creative @c");
 		requireMessageWith(context, "message.gamemode.blocked");
@@ -130,11 +125,6 @@ public final class GameModeMultiplayerGameTest implements FabricClientGameTest {
 		check(context.computeOnClient(client -> client.options.getCameraType() == CameraType.FIRST_PERSON),
 				"F3 + F5 should not change the perspective on a disabled server");
 
-		clearMessages(context);
-		context.getInput().pressKey(toggleKey);
-		context.waitTick();
-		requireMessageWith(context, "message.gamemode.blocked");
-		check(context.computeOnClient(client -> GameModeClient.config().isEnabled()), "a blocked toggle should leave the state unchanged");
 		context.takeScreenshot("gamemode-blocked-on-server");
 
 		clearMessages(context);

@@ -25,10 +25,10 @@ import org.jspecify.annotations.Nullable;
  * "Done" saves and is disabled while an address is invalid, and "Cancel" or Escape discards the changes.
  */
 public final class ServerListScreen extends Screen {
-	private static final Component TITLE = Component.translatable("options.gamemode.servers.title");
+	private static final Component TITLE = Component.translatable(SettingKeys.SERVERS);
 	private static final Component ADD = Component.translatable("options.gamemode.servers.add");
 	private static final Component REMOVE = Component.translatable("options.gamemode.servers.remove");
-	private static final Component ADDRESS_HINT = Component.translatable("options.gamemode.servers.hint")
+	private static final Component ADDRESS_HINT = Component.translatable(SettingKeys.SERVERS_HINT)
 			.withStyle(EditBox.SEARCH_HINT_STYLE);
 	private static final Component ADDRESS_NARRATION = Component.translatable("options.gamemode.servers.address");
 	private static final int INVALID_TEXT_COLOR = 0xFFFF0000;

@@ -79,7 +79,7 @@ public final class ClientGameMode {
 		switch (selection) {
 			case CLIENT -> this.apply(minecraft, gameMode);
 			case SERVER -> this.restore(minecraft);
-			case BLOCKED, TURNED_OFF -> {
+			case DISABLED, BLOCKED -> {
 			}
 		}
 		return selection;
@@ -92,8 +92,8 @@ public final class ClientGameMode {
 		return switch (selection) {
 			case CLIENT -> Component.translatable(SET_KEY, gameMode.getLongDisplayName());
 			case SERVER -> Component.translatable(SERVER_KEY, gameMode.getLongDisplayName());
+			case DISABLED -> GameModeClient.DISABLED_MESSAGE;
 			case BLOCKED -> GameModeClient.BLOCKED_MESSAGE;
-			case TURNED_OFF -> GameModeClient.TURNED_OFF_MESSAGE;
 		};
 	}
 

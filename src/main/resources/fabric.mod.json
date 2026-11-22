@@ -20,6 +20,9 @@
 		],
 		"modmenu": [
 			"com.urntt.gamemode.compat.ModMenuIntegration"
+		],
+		"oneconfig:config": [
+			"com.urntt.gamemode.compat.oneconfig.OneConfigIntegration"
 		]
 	},
 	"mixins": [
@@ -35,6 +38,7 @@
 		"fabric-api": ">=${fabric_api_version}"
 	},
 	"suggests": {
-		"modmenu": "*"
+		"modmenu": "*",
+		"oneconfig": "*"
 	}
 }

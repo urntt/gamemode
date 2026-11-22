@@ -6,7 +6,7 @@ A client-side Fabric mod for Minecraft: Java Edition that lets you change your g
 
 ## Warning
 
-**This mod is disabled in multiplayer by default. To use it in multiplayer, change the settings on its configuration screen.**
+**This mod is disabled in multiplayer by default. To use it in multiplayer, change the multiplayer mode in its settings.**
 
 A client game mode is not a server game mode. The mod changes the game mode your client uses and nothing else. The server, including the integrated server of a singleplayer world, keeps your real game mode and checks everything your client does. This mod does not try to bypass any check or anti-cheat.
 
@@ -29,7 +29,7 @@ A client game mode is not a server game mode. The mod changes the game mode your
 2. Download the jar from this repository's [Releases](https://github.com/urntt/gamemode/releases) page. Each release supports a single Minecraft version, shown after the `+` in its version number. For example, `1.0.0+26.3` is for Minecraft 26.3.
 3. Put the jar into your `.minecraft/mods` folder.
 
-[Mod Menu](https://modrinth.com/mod/modmenu) is optional. When installed, it opens the mod's configuration screen from its mod list.
+[Mod Menu](https://modrinth.com/mod/modmenu) and [OneConfig](https://modrinth.com/mod/oneconfig) are optional. Mod Menu opens the mod's configuration screen from its mod list. With OneConfig installed, you can also manage the settings in OneConfig (see [Settings](#settings)).
 
 ## Usage
 
@@ -55,7 +55,7 @@ F5 alone still changes the camera perspective, and F3 + F4 is still vanilla's sw
 A client game mode lasts until you choose the server's game mode again, and it is never saved. It also ends when:
 
 - the server changes your game mode, while **Follow Server Changes** is on (the default). The chat tells you. Respawning or changing dimension in the same game mode does not end it.
-- you turn the mod off, or the multiplayer settings rule out the server.
+- you switch to Disabled mode, turn off the mod's card in OneConfig mode, or the multiplayer settings rule out the server.
 - you leave the world or the server.
 
 ### Key bindings
@@ -63,25 +63,29 @@ A client game mode lasts until you choose the server's game mode again, and it i
 The key bindings are under **gamemode** in **Options → Controls → Key Binds**:
 
 - **Client Game Mode Switcher (with F3)**, F5 by default, opens the switcher while the debug modifier key (F3) is held.
-- **Toggle gamemode**, unbound by default, turns the whole mod on or off and shows the new state on the action bar. Turning it off ends the client game mode. On a server that the multiplayer settings rule out, it only shows that client game modes are disabled there.
 - **Open gamemode Settings**, unbound by default, opens the configuration screen. With Mod Menu installed, you can also open it from the mod list.
 
 ### Settings
 
-All settings are saved to `config/gamemode.json` as soon as you change them.
+Open the settings screen from Mod Menu, or bind the **Open gamemode Settings** key. The button at the top of the screen selects the mode:
+
+| Mode | Effect |
+| --- | --- |
+| Disabled | Client game modes are turned off everywhere, and your client always uses the server's game mode. |
+| Custom (default) | The settings on this screen apply. |
+| OneConfig | The settings registered with OneConfig apply, and are changed in OneConfig. This screen shows them greyed out and links to them with **Open in OneConfig**. Turning off the mod's card in OneConfig turns client game modes off. Only offered when OneConfig is installed. |
+
+If OneConfig mode is selected but OneConfig is later removed, the custom settings apply until you pick another mode.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| Client Game Mode | On | Whether `/gamemode <mode> @c` and the switcher may change your client game mode now, the same state the **Toggle gamemode** key switches. |
 | Follow Server Changes | On | When the server changes your game mode, the client game mode ends and you use the server's new game mode. When off, the client game mode stays. |
-| Singleplayer Default | On | Whether a reset turns the mod on or off in singleplayer worlds, including worlds you open to LAN. |
-| Server Default | On | Whether a reset turns the mod on or off on servers that the multiplayer mode allows. |
-| Reset on World Exit | Off | Every world starts with the mod in its default state instead of keeping the last state. |
-| Reset on Game Exit | Off | After restarting the game, the first world where the mod is allowed starts with the mod in its default state. |
-| Multiplayer mode | Disabled | **Disabled**: never allows client game modes on servers. **Whitelist**: allows them only on servers in the server list. **Blacklist**: allows them on all servers except those in the server list. |
+| Multiplayer Mode | Disabled | **Disabled**: never allows client game modes on servers. **Whitelist**: allows them only on servers in the server list. **Blacklist**: allows them on all servers except those in the server list. |
 | Server List | Empty | The addresses the whitelist and blacklist modes use. |
 
-The multiplayer mode is a hard limit: on a server it rules out, the client always uses the server's game mode, whatever the mod's state is, and the commands and the switcher only report that client game modes are disabled there. Joining another player's LAN world or a Realm counts as multiplayer.
+The custom settings are saved to `config/gamemode.json` as soon as you change them; OneConfig keeps its own in `config/gamemode-oneconfig.json`. A configuration file from version 1.0.0, which had an on/off state instead of modes, keeps its other settings and starts in Disabled mode if the mod was off.
+
+The multiplayer mode is a hard limit: on a server it rules out, the client always uses the server's game mode, and the commands and the switcher only report that client game modes are disabled there. Joining another player's LAN world or a Realm counts as multiplayer.
 
 Server list entries are compared with the address you connect to, ignoring upper and lower case. An entry without a port, such as `mc.example.com`, matches the server on any port, while an entry with a port, such as `mc.example.com:25566`, matches only that port. The server list screen marks invalid addresses in red and does not save until they are fixed or removed.
 
@@ -97,7 +101,7 @@ Build the mod:
 
 The jar is written to `build/libs/`.
 
-Run the client game tests, which start Minecraft and check what each client game mode changes on the client while the server keeps the real one, the commands, the switcher, the server-change rule, the key bindings, the settings screens, and the multiplayer rules on a local dedicated server:
+Run the client game tests, which start Minecraft and check what each client game mode changes on the client while the server keeps the real one, the commands, the switcher, the server-change rule, the configuration modes and screens, the key bindings, and the multiplayer rules on a local dedicated server:
 
 ```bash
 ./gradlew runClientGameTest
@@ -110,6 +114,12 @@ xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew runClientGameTest
 ```
 
 Screenshots taken by the tests are saved to `build/run/clientGameTest/screenshots/`.
+
+By default, the development client and the tests run without OneConfig. Add `-PoneConfigRuntime=true` to run them with OneConfig installed, which offers the OneConfig mode, and the tests check it too:
+
+```bash
+./gradlew runClientGameTest -PoneConfigRuntime=true
+```
 
 The multiplayer tests start a local dedicated server, so the test setup in `build.gradle` accepts the [Minecraft EULA](https://aka.ms/MinecraftEULA) for that test server.
 

@@ -1,11 +1,12 @@
 package com.urntt.gamemode.config;
 
 import com.urntt.gamemode.GameModeClient;
+import com.urntt.gamemode.compat.OneConfigBridge;
 import java.util.List;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.OptionInstance;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
@@ -13,13 +14,14 @@ import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Configuration screen built from vanilla widgets. Every change is saved immediately.
+ * The configuration screen, built from vanilla widgets. The mode button comes first. The settings below it can only
+ * be edited in custom mode; otherwise they are greyed out and show the values that currently apply.
  */
 public final class GameModeConfigScreen extends OptionsSubScreen {
-	private static final Component TITLE = Component.translatable("options.gamemode.title");
+	private final GameModeConfig config = GameModeClient.config();
 
 	public GameModeConfigScreen(final @Nullable Screen parent) {
-		super(parent, Minecraft.getInstance().options, TITLE);
+		super(parent, Minecraft.getInstance().options, Component.translatable(SettingKeys.TITLE));
 	}
 
 	@Override
@@ -27,51 +29,61 @@ public final class GameModeConfigScreen extends OptionsSubScreen {
 		if (this.list == null) {
 			return;
 		}
-		GameModeConfig config = GameModeClient.config();
+		ConfigMode mode = this.config.effectiveMode();
+		boolean editable = mode == ConfigMode.CUSTOM;
+		GameModeSettings shown = this.config.effective();
 
-		this.list.addHeader(Component.translatable("options.gamemode.section.current"));
-		this.list.addBig(toggle(GameModeClient.FEATURE_NAME_KEY, config.isEnabled(), config::setEnabled));
+		this.list.addBig(this.createModeButton(mode));
+		if (mode == ConfigMode.ONECONFIG) {
+			this.list.addBig(Button.builder(Component.translatable(SettingKeys.OPEN_ONECONFIG), button -> OneConfigBridge.openOneConfig()).build());
+		}
 
-		this.list.addHeader(Component.translatable("options.gamemode.section.server_changes"));
-		this.list.addBig(toggle("options.gamemode.follow_server_changes", config.followServerChanges(),
-				config::setFollowServerChanges));
+		this.list.addHeader(Component.translatable(SettingKeys.SERVER_CHANGES));
+		this.list.addBig(this.toggle(SettingKeys.FOLLOW_SERVER_CHANGES, shown.followServerChanges(), editable, this.config::setFollowServerChanges));
 
-		this.list.addHeader(Component.translatable("options.gamemode.section.defaults"));
-		this.list.addBig(toggle("options.gamemode.singleplayer_default", config.singleplayerDefault(),
-				config::setSingleplayerDefault));
-		this.list.addBig(toggle("options.gamemode.multiplayer_default", config.multiplayerDefault(),
-				config::setMultiplayerDefault));
-
-		this.list.addHeader(Component.translatable("options.gamemode.section.reset"));
-		this.list.addBig(toggle("options.gamemode.reset_on_world_exit", config.resetOnWorldExit(),
-				config::setResetOnWorldExit));
-		this.list.addBig(toggle("options.gamemode.reset_on_game_exit", config.resetOnGameExit(),
-				config::setResetOnGameExit));
-
-		this.list.addHeader(Component.translatable("options.gamemode.section.multiplayer"));
-		this.list.addBig(new OptionInstance<>(
-				"options.gamemode.multiplayer_mode",
-				mode -> Tooltip.create(mode.description()),
-				// The button itself prepends the caption, so this only names the value.
-				(caption, mode) -> mode.label(),
-				new OptionInstance.Enum<>(List.of(MultiplayerMode.values()), MultiplayerMode.CODEC),
-				config.multiplayerMode(),
-				config::setMultiplayerMode));
-		this.list.addBig(Button.builder(Component.translatable("options.gamemode.edit_servers"),
-						button -> this.minecraft.gui.setScreen(new ServerListScreen(this, config)))
-				.tooltip(Tooltip.create(Component.translatable("options.gamemode.edit_servers.tooltip")))
-				.build());
+		this.list.addHeader(Component.translatable(SettingKeys.MULTIPLAYER));
+		CycleButton<MultiplayerMode> multiplayerMode = CycleButton.builder(MultiplayerMode::label, shown.multiplayerMode())
+				.withValues(MultiplayerMode.values())
+				.withTooltip(value -> Tooltip.create(value.description()))
+				.create(Component.translatable(SettingKeys.MULTIPLAYER_MODE), (button, value) -> this.config.setMultiplayerMode(value));
+		multiplayerMode.active = editable;
+		this.list.addBig(multiplayerMode);
+		Button servers = Button.builder(Component.translatable(SettingKeys.EDIT_SERVERS),
+						button -> this.minecraft.gui.setScreen(new ServerListScreen(this, this.config)))
+				.tooltip(Tooltip.create(Component.translatable(SettingKeys.EDIT_SERVERS + SettingKeys.DESCRIPTION)))
+				.build();
+		servers.active = editable;
+		this.list.addBig(servers);
 	}
 
-	/**
-	 * Creates an on/off option whose tooltip is the translation of {@code captionKey + ".tooltip"}.
-	 */
-	private static OptionInstance<Boolean> toggle(final String captionKey, final boolean value,
-			final Consumer<Boolean> onChange) {
-		return OptionInstance.createBoolean(
-				captionKey,
-				OptionInstance.cachedConstantTooltip(Component.translatable(captionKey + ".tooltip")),
-				value,
-				onChange::accept);
+	private CycleButton<ConfigMode> createModeButton(final ConfigMode mode) {
+		List<ConfigMode> modes = OneConfigBridge.isAvailable()
+				? List.of(ConfigMode.values())
+				: List.of(ConfigMode.DISABLED, ConfigMode.CUSTOM);
+		boolean oneConfigMissing = this.config.storedMode() == ConfigMode.ONECONFIG && !OneConfigBridge.isAvailable();
+		return CycleButton.builder(ConfigMode::label, mode)
+				.withValues(modes)
+				.withTooltip(value -> Tooltip.create(oneConfigMissing && value == mode
+						? Component.translatable(SettingKeys.ONECONFIG_MISSING)
+						: value.description()))
+				.create(Component.translatable(SettingKeys.MODE), (button, value) -> {
+					this.config.setMode(value);
+					// The settings below change their values and whether they can be edited, so start over.
+					this.minecraft.gui.setScreen(new GameModeConfigScreen(this.lastScreen));
+				});
+	}
+
+	private CycleButton<Boolean> toggle(final String key, final boolean value, final boolean editable, final Consumer<Boolean> setter) {
+		Tooltip tooltip = Tooltip.create(Component.translatable(key + SettingKeys.DESCRIPTION));
+		CycleButton<Boolean> button = CycleButton.onOffBuilder(value)
+				.withTooltip(ignored -> tooltip)
+				.create(Component.translatable(key), (cycleButton, newValue) -> setter.accept(newValue));
+		button.active = editable;
+		return button;
+	}
+
+	/** Shows the screen on top of whatever screen is open. */
+	public static void open(final Minecraft minecraft) {
+		minecraft.gui.setScreen(new GameModeConfigScreen(minecraft.gui.screen()));
 	}
 }

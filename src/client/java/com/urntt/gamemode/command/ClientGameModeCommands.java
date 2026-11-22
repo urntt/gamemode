@@ -37,8 +37,8 @@ public final class ClientGameModeCommands {
 	public static final String STATUS_SERVER_KEY = "gamemode.command.status.server";
 	public static final String STATUS_SWITCH_KEY = "gamemode.command.status.switch";
 
+	private static final SimpleCommandExceptionType DISABLED = new SimpleCommandExceptionType(GameModeClient.DISABLED_MESSAGE);
 	private static final SimpleCommandExceptionType BLOCKED = new SimpleCommandExceptionType(GameModeClient.BLOCKED_MESSAGE);
-	private static final SimpleCommandExceptionType TURNED_OFF = new SimpleCommandExceptionType(GameModeClient.TURNED_OFF_MESSAGE);
 	private static final SimpleCommandExceptionType NOT_IN_WORLD =
 			new SimpleCommandExceptionType(Component.translatable("gamemode.command.not_in_world"));
 
@@ -111,8 +111,8 @@ public final class ClientGameModeCommands {
 	private static int select(final LocalPlayer player, final GameType gameMode) throws CommandSyntaxException {
 		GameModeController.Selection selection = GameModeClient.clientGameMode().select(Minecraft.getInstance(), gameMode);
 		switch (selection) {
+			case DISABLED -> throw DISABLED.create();
 			case BLOCKED -> throw BLOCKED.create();
-			case TURNED_OFF -> throw TURNED_OFF.create();
 			case CLIENT, SERVER -> player.sendSystemMessage(ClientGameMode.feedback(selection, gameMode));
 		}
 		return 1;

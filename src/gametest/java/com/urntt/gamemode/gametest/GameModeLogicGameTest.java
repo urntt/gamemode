@@ -9,8 +9,11 @@ import com.urntt.gamemode.GameModeController.ServerChange;
 import com.urntt.gamemode.Scene;
 import com.urntt.gamemode.ServerAddresses;
 import com.urntt.gamemode.command.ClientGameModeCommands;
+import com.urntt.gamemode.compat.OneConfigBridge;
+import com.urntt.gamemode.config.ConfigMode;
 import com.urntt.gamemode.config.GameModeConfig;
 import com.urntt.gamemode.config.MultiplayerMode;
+import com.urntt.gamemode.config.SettingValues;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -18,12 +21,13 @@ import java.nio.file.Path;
 import java.util.List;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.world.level.GameType;
 
 /**
- * Checks the address matching, the configuration, the command detection and the controller's rules without a world.
- * Each check uses its own configuration file, so the game's configuration is left alone. Restarting the game is not
- * possible in a game test, so this is also where "reset on game exit" is covered.
+ * Checks the address matching, the configuration and its modes, the command detection and the controller's rules
+ * without a world. Each check uses its own configuration file, so the game's configuration is left alone. The test
+ * client runs without OneConfig by default and with it when Gradle is given {@code -PoneConfigRuntime=true}.
  */
 @SuppressWarnings("UnstableApiUsage")
 public final class GameModeLogicGameTest implements FabricClientGameTest {
@@ -37,12 +41,13 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 		checkGameConfigDefaults();
 		checkAddressMatching();
 		checkConfigFile(directory);
+		checkUpgradeFrom100(directory);
+		checkOneConfigFallback(directory);
 		checkCommandDetection();
 		checkSelection(directory);
 		checkServerChanges(directory);
-		checkTurnedOff(directory);
+		checkDisabledMode(directory);
 		checkMultiplayerRules(directory);
-		checkResetRules(directory);
 		GameTestSupport.LOGGER.info("Logic checks passed");
 	}
 
@@ -52,17 +57,16 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 	private static void checkGameConfigDefaults() {
 		GameModeConfig config = GameTestSupport.loadSavedConfig();
 		checkDefaults(config, "the game's configuration");
+		boolean oneConfigInstalled = FabricLoader.getInstance().isModLoaded(OneConfigBridge.MOD_ID);
+		check(OneConfigBridge.isAvailable() == oneConfigInstalled,
+				"OneConfig mode should be available exactly when OneConfig is installed (installed: " + oneConfigInstalled + ")");
 	}
 
 	private static void checkDefaults(final GameModeConfig config, final String what) {
-		check(config.isEnabled(), what + ": the mod should be on by default");
-		check(config.followServerChanges(), what + ": following server changes should be on by default");
-		check(config.singleplayerDefault(), what + ": the singleplayer default should be on");
-		check(config.multiplayerDefault(), what + ": the server default should be on");
-		check(!config.resetOnWorldExit(), what + ": reset on world exit should be off by default");
-		check(!config.resetOnGameExit(), what + ": reset on game exit should be off by default");
+		check(config.storedMode() == ConfigMode.CUSTOM, what + ": the default mode should be custom, was " + config.storedMode());
+		check(SettingValues.copyOf(config).equals(SettingValues.DEFAULTS), what + ": the custom settings should start at the defaults, were "
+				+ SettingValues.copyOf(config));
 		check(config.multiplayerMode() == MultiplayerMode.DISABLED, what + ": multiplayer should be disabled by default");
-		check(config.servers().isEmpty(), what + ": the server list should be empty by default");
 	}
 
 	private static void checkAddressMatching() {
@@ -96,14 +100,14 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 	private static void checkConfigFile(final Path directory) {
 		Path defaults = directory.resolve("defaults.json");
 		checkDefaults(GameModeConfig.load(defaults), "a new configuration");
-		check(Files.exists(defaults), "a missing config file should be created");
+		check(read(defaults).contains("\"mode\": \"custom\""), "a missing config file should be created with the mode");
 
 		Path partial = directory.resolve("partial.json");
-		write(partial, "{\"enabled\": false, \"multiplayerMode\": \"bogus\", \"servers\": [\" a.example.com \", \"\"]}");
+		write(partial, "{\"mode\": \"bogus\", \"multiplayerMode\": \"bogus\", \"servers\": [\" a.example.com \", \"\"]}");
 		GameModeConfig config = GameModeConfig.load(partial);
-		check(!config.isEnabled(), "existing settings should be kept");
+		check(config.storedMode() == ConfigMode.CUSTOM, "an unknown mode should fall back to custom");
 		check(config.followServerChanges(), "a missing setting should get its default");
-		check(config.multiplayerMode() == MultiplayerMode.DISABLED, "an unknown mode should fall back to disabled");
+		check(config.multiplayerMode() == MultiplayerMode.DISABLED, "an unknown multiplayer mode should fall back to disabled");
 		check(config.servers().equals(List.of("a.example.com")), "entries should be trimmed and blanks dropped");
 		check(read(partial).contains("\"followServerChanges\""), "missing settings should be written to the file");
 
@@ -113,7 +117,54 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 		check(read(broken).equals("{ not json"), "an unreadable config file should be left untouched");
 
 		config.setFollowServerChanges(false);
-		check(!GameModeConfig.load(partial).followServerChanges(), "changes should be saved immediately");
+		config.setMode(ConfigMode.DISABLED);
+		GameModeConfig reloaded = GameModeConfig.load(partial);
+		check(!reloaded.followServerChanges() && reloaded.storedMode() == ConfigMode.DISABLED, "changes should be saved immediately");
+	}
+
+	/**
+	 * Version 1.0.0 had an on/off state instead of modes, defaults and reset rules. A file from it keeps its other
+	 * settings, starts in Disabled mode if the mod was off, and loses the keys this version no longer uses.
+	 */
+	private static void checkUpgradeFrom100(final Path directory) {
+		Path off = directory.resolve("upgrade-off.json");
+		write(off, "{\"enabled\": false, \"followServerChanges\": false, \"singleplayerDefault\": true, \"multiplayerDefault\": true,"
+				+ " \"resetOnWorldExit\": true, \"resetOnGameExit\": false, \"multiplayerMode\": \"whitelist\", \"servers\": [\"a.example.com\"]}");
+		GameModeConfig config = GameModeConfig.load(off);
+		check(config.storedMode() == ConfigMode.DISABLED, "a 1.0.0 file with the mod off should start in Disabled mode");
+		check(!config.followServerChanges() && config.multiplayerMode() == MultiplayerMode.WHITELIST
+				&& config.servers().equals(List.of("a.example.com")), "a 1.0.0 file should keep its other settings");
+		String saved = read(off);
+		for (String key : List.of("enabled", "singleplayerDefault", "multiplayerDefault", "resetOnWorldExit", "resetOnGameExit")) {
+			check(!saved.contains("\"" + key + "\""), "the upgraded file should not keep " + key + ": " + saved);
+		}
+		check(GameModeConfig.load(off).storedMode() == ConfigMode.DISABLED, "the upgraded mode should be saved");
+
+		Path on = directory.resolve("upgrade-on.json");
+		write(on, "{\"enabled\": true, \"multiplayerMode\": \"disabled\"}");
+		check(GameModeConfig.load(on).storedMode() == ConfigMode.CUSTOM, "a 1.0.0 file with the mod on should start in custom mode");
+	}
+
+	/**
+	 * OneConfig mode applies only while OneConfig is installed; otherwise the custom settings apply and the stored
+	 * mode is kept until the player picks another.
+	 */
+	private static void checkOneConfigFallback(final Path directory) {
+		Path path = directory.resolve("oneconfig.json");
+		write(path, "{\"mode\": \"oneconfig\", \"multiplayerMode\": \"blacklist\"}");
+		GameModeConfig config = GameModeConfig.load(path);
+		check(config.storedMode() == ConfigMode.ONECONFIG, "the stored mode should stay OneConfig");
+		if (OneConfigBridge.isAvailable()) {
+			check(config.effectiveMode() == ConfigMode.ONECONFIG, "OneConfig mode should apply while OneConfig is installed");
+			check(config.effective() != config, "OneConfig mode should apply OneConfig's settings");
+		} else {
+			check(config.effectiveMode() == ConfigMode.CUSTOM, "without OneConfig, OneConfig mode should fall back to custom");
+			check(config.effective() == config, "without OneConfig, the custom settings should apply");
+		}
+		check(GameModeConfig.load(path).storedMode() == ConfigMode.ONECONFIG, "loading should not change the stored mode");
+
+		config.setMode(ConfigMode.DISABLED);
+		check(SettingValues.copyOf(config.effective()).equals(SettingValues.DISABLED), "Disabled mode should apply the disabled settings");
 	}
 
 	/**
@@ -185,22 +236,26 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 		check(controller.select(GameType.ADVENTURE) == Selection.SERVER, "choosing the server's new game mode should end it");
 	}
 
-	private static void checkTurnedOff(final Path directory) {
-		GameModeConfig config = GameModeConfig.load(directory.resolve("turned-off.json"));
+	private static void checkDisabledMode(final Path directory) {
+		GameModeConfig config = GameModeConfig.load(directory.resolve("disabled.json"));
 		GameModeController controller = new GameModeController(config);
 		controller.onLogin(GameType.SURVIVAL);
 		controller.onJoin(Scene.SINGLEPLAYER);
 		controller.select(GameType.CREATIVE);
 
-		check(controller.toggle() == GameModeController.ToggleResult.DISABLED, "toggling should turn the mod off");
-		check(!config.isEnabled(), "the off state should be saved");
-		check(controller.availability() == Availability.TURNED_OFF, "the mod should report that it is off");
-		check(controller.endIfUnavailable(), "turning the mod off should end the client game mode");
+		config.setMode(ConfigMode.DISABLED);
+		check(controller.availability() == Availability.DISABLED, "Disabled mode should turn client game modes off");
+		check(controller.endIfUnavailable(), "Disabled mode should end the client game mode");
 		check(controller.clientGameMode() == null, "no client game mode should be left");
 		check(!controller.endIfUnavailable(), "there should be nothing left to end");
-		check(controller.select(GameType.CREATIVE) == Selection.TURNED_OFF, "selecting should report that the mod is off");
-		check(controller.clientGameMode() == null, "a turned-off mod should not set a client game mode");
-		check(controller.toggle() == GameModeController.ToggleResult.ENABLED, "toggling should turn the mod on again");
+		check(controller.select(GameType.CREATIVE) == Selection.DISABLED, "selecting should report Disabled mode");
+		check(controller.clientGameMode() == null, "Disabled mode should not set a client game mode");
+
+		config.setMultiplayerMode(MultiplayerMode.BLACKLIST);
+		controller.onJoin(SERVER_A);
+		check(controller.availability() == Availability.DISABLED, "Disabled mode should come before the multiplayer rules");
+		config.setMode(ConfigMode.CUSTOM);
+		check(controller.availability() == Availability.AVAILABLE, "custom mode should allow client game modes again");
 	}
 
 	private static void checkMultiplayerRules(final Path directory) {
@@ -211,12 +266,6 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 		controller.onJoin(SERVER_A);
 		check(controller.availability() == Availability.BLOCKED, "the disabled mode should rule out every server");
 		check(controller.select(GameType.CREATIVE) == Selection.BLOCKED, "selecting should be blocked");
-		check(controller.toggle() == GameModeController.ToggleResult.BLOCKED, "toggling should be blocked");
-		check(config.isEnabled(), "a blocked toggle should leave the state unchanged");
-		config.setEnabled(false);
-		check(controller.availability() == Availability.BLOCKED, "the multiplayer rules should come before the state");
-		config.setEnabled(true);
-
 		config.setServers(List.of("a.example.com"));
 		config.setMultiplayerMode(MultiplayerMode.WHITELIST);
 		check(controller.availability() == Availability.AVAILABLE, "a whitelisted server should be allowed");
@@ -245,37 +294,6 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 
 		controller.onDisconnect();
 		check(controller.availability() == Availability.BLOCKED, "nothing should be available after disconnecting");
-	}
-
-	private static void checkResetRules(final Path directory) {
-		GameModeConfig config = GameModeConfig.load(directory.resolve("reset.json"));
-		config.setResetOnGameExit(true);
-		config.setEnabled(false);
-
-		// A fresh controller stands for a game that has just started.
-		GameModeController controller = new GameModeController(config);
-		controller.onJoin(SERVER_A);
-		check(!config.isEnabled(), "a ruled-out server should not apply the game exit reset");
-		controller.onDisconnect();
-		controller.onJoin(Scene.SINGLEPLAYER);
-		check(config.isEnabled(), "the first allowed world after starting should restore the default");
-		controller.onDisconnect();
-		config.setEnabled(false);
-		controller.onJoin(Scene.SINGLEPLAYER);
-		check(!config.isEnabled(), "later worlds should keep the state without reset on world exit");
-		controller.onDisconnect();
-
-		config.setResetOnWorldExit(true);
-		controller.onJoin(Scene.SINGLEPLAYER);
-		check(config.isEnabled(), "reset on world exit should restore the singleplayer default");
-		controller.onDisconnect();
-
-		config.setMultiplayerMode(MultiplayerMode.WHITELIST);
-		config.setServers(List.of("a.example.com"));
-		config.setMultiplayerDefault(false);
-		controller.onJoin(SERVER_A);
-		check(!config.isEnabled(), "an allowed server should restore the server default");
-		controller.onDisconnect();
 	}
 
 	private static Path createTempDirectory() {

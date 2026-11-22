@@ -34,10 +34,15 @@ public enum MultiplayerMode implements StringRepresentable {
 	}
 
 	public Component label() {
-		return Component.translatable("options.gamemode.multiplayer_mode." + this.name);
+		return Component.translatable(this.translationKey());
 	}
 
 	public Component description() {
-		return Component.translatable("options.gamemode.multiplayer_mode." + this.name + ".description");
+		return Component.translatable(this.translationKey() + SettingKeys.DESCRIPTION);
+	}
+
+	/** The key of the mode's name, which OneConfig's dropdown also lists. */
+	public String translationKey() {
+		return SettingKeys.MULTIPLAYER_MODE + "." + this.name;
 	}
 }

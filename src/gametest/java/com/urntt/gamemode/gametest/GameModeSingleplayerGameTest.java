@@ -10,20 +10,17 @@ import static com.urntt.gamemode.gametest.GameTestSupport.clickCommands;
 import static com.urntt.gamemode.gametest.GameTestSupport.clientGameMode;
 import static com.urntt.gamemode.gametest.GameTestSupport.configure;
 import static com.urntt.gamemode.gametest.GameTestSupport.listenForMessages;
-import static com.urntt.gamemode.gametest.GameTestSupport.loadSavedConfig;
 import static com.urntt.gamemode.gametest.GameTestSupport.requireMessageWith;
 import static com.urntt.gamemode.gametest.GameTestSupport.requireNoMessageWith;
 import static com.urntt.gamemode.gametest.GameTestSupport.serverGameMode;
-import static com.urntt.gamemode.gametest.GameTestSupport.switchLanguage;
 import static com.urntt.gamemode.gametest.GameTestSupport.typeCommand;
 import static com.urntt.gamemode.gametest.GameTestSupport.unbindKey;
 
 import com.urntt.gamemode.ClientGameMode;
 import com.urntt.gamemode.GameModeClient;
 import com.urntt.gamemode.command.ClientGameModeCommands;
+import com.urntt.gamemode.config.ConfigMode;
 import com.urntt.gamemode.config.GameModeConfigScreen;
-import com.urntt.gamemode.config.MultiplayerMode;
-import com.urntt.gamemode.config.ServerListScreen;
 import com.urntt.gamemode.switcher.ClientGameModeSwitcherScreen;
 import java.util.List;
 import java.util.Locale;
@@ -33,8 +30,6 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestServerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.KeyMapping;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -47,7 +42,7 @@ import net.minecraft.world.phys.Vec3;
 /**
  * Checks client game modes in a singleplayer world: what each game mode changes on the client while the integrated
  * server keeps the real one, the commands and their feedback, the switcher, the server-change rule, the key bindings,
- * turning the mod off, leaving the world, and the settings screens.
+ * Disabled mode, leaving the world, and the settings key.
  */
 @SuppressWarnings("UnstableApiUsage")
 public final class GameModeSingleplayerGameTest implements FabricClientGameTest {
@@ -61,7 +56,6 @@ public final class GameModeSingleplayerGameTest implements FabricClientGameTest 
 	@Override
 	public void runTest(final ClientGameTestContext context) {
 		listenForMessages(context);
-		KeyMapping toggleKey = bindKey(context, GameModeClient.TOGGLE_KEY_NAME, "key.keyboard.j");
 		KeyMapping openSettingsKey = bindKey(context, GameModeClient.OPEN_SETTINGS_KEY_NAME, "key.keyboard.k");
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
 			singleplayer.getConnection().waitForChunksRender();
@@ -80,8 +74,8 @@ public final class GameModeSingleplayerGameTest implements FabricClientGameTest 
 			checkCommandTree(context);
 			checkVanillaCommandsReachServer(context, server);
 			checkSwitcher(context);
-			checkTurnedOff(context, toggleKey);
-			checkSettingsScreens(context, openSettingsKey);
+			checkDisabledMode(context);
+			checkSettingsKey(context, openSettingsKey);
 
 			typeCommand(context, "gamemode creative @c");
 			check(clientGameMode(context) == GameType.CREATIVE, "the world should be left in client creative");
@@ -95,7 +89,6 @@ public final class GameModeSingleplayerGameTest implements FabricClientGameTest 
 			checkClientUses(context, serverGameMode, "a new world");
 		}
 
-		unbindKey(context, toggleKey);
 		unbindKey(context, openSettingsKey);
 	}
 
@@ -329,97 +322,56 @@ public final class GameModeSingleplayerGameTest implements FabricClientGameTest 
 	}
 
 	/**
-	 * The toggle key turns the mod off, which ends the client game mode at once; while it is off, the commands and the
-	 * switcher only report it, and the status still works.
+	 * Disabled mode ends the client game mode at once; while it applies, the commands and the switcher only report it,
+	 * and the status still works.
 	 */
-	private static void checkTurnedOff(final ClientGameTestContext context, final KeyMapping toggleKey) {
+	private static void checkDisabledMode(final ClientGameTestContext context) {
 		typeCommand(context, "gamemode creative @c");
-		check(clientGameMode(context) == GameType.CREATIVE, "client creative should be on before turning the mod off");
+		check(clientGameMode(context) == GameType.CREATIVE, "client creative should be on before Disabled mode");
 		context.runOnClient(client -> client.gui.hud.getChat().clearMessages(false));
-		clearMessages(context);
-		context.getInput().pressKey(toggleKey);
+		configure(context, config -> config.setMode(ConfigMode.DISABLED));
 		context.waitTick();
-		check(!isEnabled(context), "the toggle key should turn the mod off");
-		check(!loadSavedConfig().isEnabled(), "the off state should be saved to the config file");
-		requireMessageWith(context, GameModeClient.FEATURE_NAME_KEY);
-		check(clientGameMode(context) == null, "turning the mod off should end the client game mode");
-		checkClientUses(context, GameType.SURVIVAL, "after turning the mod off");
-		check(!clientAbilities(context).mayfly, "turning the mod off should restore the server's abilities");
-		context.takeScreenshot("gamemode-toggled-off");
+		check(clientGameMode(context) == null, "Disabled mode should end the client game mode");
+		checkClientUses(context, GameType.SURVIVAL, "in Disabled mode");
+		check(!clientAbilities(context).mayfly, "Disabled mode should restore the server's abilities");
 
 		clearMessages(context);
 		typeCommand(context, "gamemode creative @c");
-		requireMessageWith(context, "message.gamemode.turned_off");
-		check(clientGameMode(context) == null, "a turned-off mod should not set a client game mode");
+		requireMessageWith(context, "message.gamemode.disabled");
+		check(clientGameMode(context) == null, "Disabled mode should not set a client game mode");
 		requireNoMessageWith(context, "command.unknown.command");
 
 		context.getInput().holdKey(options -> options.keyDebugModifier);
 		context.getInput().pressKey(GameModeClient.switcherKey());
 		context.waitTick();
 		context.getInput().releaseKey(options -> options.keyDebugModifier);
-		check(context.computeOnClient(client -> client.gui.screen() == null), "a turned-off mod should not open the switcher");
+		check(context.computeOnClient(client -> client.gui.screen() == null), "Disabled mode should not open the switcher");
 		check(context.computeOnClient(client -> client.options.getCameraType() == CameraType.FIRST_PERSON),
-				"F3 + F5 should not change the perspective while the mod is off");
+				"F3 + F5 should not change the perspective in Disabled mode");
 
 		clearMessages(context);
 		typeCommand(context, "gamemode @c");
 		requireMessageWith(context, ClientGameModeCommands.STATUS_SERVER_KEY);
-		requireMessageWith(context, "message.gamemode.turned_off");
+		requireMessageWith(context, "message.gamemode.disabled");
+		context.takeScreenshot("gamemode-disabled");
 
-		context.getInput().pressKey(toggleKey);
-		context.waitTick();
-		check(isEnabled(context), "the toggle key should turn the mod on again");
-		check(loadSavedConfig().isEnabled(), "the on state should be saved to the config file");
+		configure(context, config -> config.setMode(ConfigMode.CUSTOM));
+		typeCommand(context, "gamemode creative @c");
+		check(clientGameMode(context) == GameType.CREATIVE, "custom mode should allow client game modes again");
+		typeCommand(context, "gamemode survival @c");
 	}
 
 	/**
-	 * The settings key opens the configuration screen. Screenshots show every settings screen and the key bindings in
-	 * both languages.
+	 * The settings key opens the configuration screen. {@code GameModeConfigScreenGameTest} checks the screen itself.
 	 */
-	private static void checkSettingsScreens(final ClientGameTestContext context, final KeyMapping openSettingsKey) {
+	private static void checkSettingsKey(final ClientGameTestContext context, final KeyMapping openSettingsKey) {
 		context.getInput().pressKey(openSettingsKey);
 		context.waitForScreen(GameModeConfigScreen.class);
-		context.setScreen(() -> null);
-
-		configure(context, config -> {
-			config.setMultiplayerMode(MultiplayerMode.WHITELIST);
-			config.setServers(List.of("mc.example.com", "192.168.1.5"));
-		});
-		// Keep the cursor away from the widgets so no tooltip covers them.
-		context.getInput().setCursorPos(0, 0);
-		takeSettingsScreenshots(context, "en_us");
-		switchLanguage(context, "zh_cn");
-		takeSettingsScreenshots(context, "zh_cn");
-		switchLanguage(context, "en_us");
-		configure(context, config -> {
-			config.setMultiplayerMode(MultiplayerMode.DISABLED);
-			config.setServers(List.of());
-		});
-	}
-
-	private static void takeSettingsScreenshots(final ClientGameTestContext context, final String language) {
-		context.setScreen(() -> new GameModeConfigScreen(null));
-		context.takeScreenshot("gamemode-config-screen-" + language);
-		context.getInput().scroll(-20);
-		context.waitTick();
-		context.takeScreenshot("gamemode-config-screen-bottom-" + language);
-
-		context.setScreen(() -> new ServerListScreen(new GameModeConfigScreen(null), GameModeClient.config()));
-		context.takeScreenshot("gamemode-server-list-" + language);
-
-		context.setScreen(() -> new KeyBindsScreen(null, Minecraft.getInstance().options));
-		context.getInput().scroll(-1000);
-		context.waitTick();
-		context.takeScreenshot("gamemode-key-binds-" + language);
 		context.setScreen(() -> null);
 	}
 
 	private static GameType selected(final ClientGameTestContext context) {
 		return context.computeOnClient(client -> ((ClientGameModeSwitcherScreen) client.gui.screen()).selected());
-	}
-
-	private static boolean isEnabled(final ClientGameTestContext context) {
-		return context.computeOnClient(client -> GameModeClient.config().isEnabled());
 	}
 
 	private static void setFlying(final ClientGameTestContext context, final boolean flying) {
