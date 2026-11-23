@@ -83,7 +83,8 @@ The mod version itself follows [Semantic Versioning](https://semver.org/); the `
 ### Implementation
 
 - Language: Java only.
-- Source sets: `src/main` holds only `fabric.mod.json`. All code and client resources live in `src/client`, and the client game tests live in `src/gametest`.
+- Source sets: `src/main` holds only `fabric.mod.json` and the icon. All code and client resources live in `src/client`, and the client game tests live in `src/gametest`.
+- The icon follows hiteffect's: the same hair clip, with a game controller whose four buttons stand for the four game modes. Its source is `art/icon.svg`. `src/main/resources/assets/gamemode/icon.png` is rendered from it at 512 x 512 pixels with a transparent background; render it again whenever the SVG changes.
 - Mixins: prefer the MixinExtras injectors bundled with Fabric Loader (for example `@ModifyReturnValue`, `@WrapOperation` and `@WrapMethod`) over `@Redirect` and `@Overwrite`, to stay compatible with other mods and keep porting work small. Name handler methods `gamemode$<what>`.
 - The server sets the client's game mode through `MultiPlayerGameMode.setLocalMode` in `ClientPacketListener.handleLogin`, `handleRespawn` and `handleGameEvent`, and its abilities in `handlePlayerAbilities`. These are the only places the mod reads the server's game mode from; keep the decisions about them in `GameModeController`, which has no Minecraft state, so the logic game test can check it directly.
 - Fabric's `ClientPlayConnectionEvents.DISCONNECT` does not fire reliably when a singleplayer world is closed, so per-world state is also reset on login and on `JOIN`.

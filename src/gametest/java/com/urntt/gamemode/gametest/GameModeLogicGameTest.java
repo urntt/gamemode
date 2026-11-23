@@ -2,6 +2,7 @@ package com.urntt.gamemode.gametest;
 
 import static com.urntt.gamemode.gametest.GameTestSupport.check;
 
+import com.urntt.gamemode.GameModeClient;
 import com.urntt.gamemode.GameModeController;
 import com.urntt.gamemode.GameModeController.Availability;
 import com.urntt.gamemode.GameModeController.Selection;
@@ -22,6 +23,7 @@ import java.util.List;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.api.ModContainer;
 import net.minecraft.world.level.GameType;
 
 /**
@@ -39,6 +41,7 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 	public void runTest(final ClientGameTestContext context) {
 		Path directory = createTempDirectory();
 		checkGameConfigDefaults();
+		checkIcon();
 		checkAddressMatching();
 		checkConfigFile(directory);
 		checkUpgradeFrom100(directory);
@@ -60,6 +63,15 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 		boolean oneConfigInstalled = FabricLoader.getInstance().isModLoaded(OneConfigBridge.MOD_ID);
 		check(OneConfigBridge.isAvailable() == oneConfigInstalled,
 				"OneConfig mode should be available exactly when OneConfig is installed (installed: " + oneConfigInstalled + ")");
+	}
+
+	/**
+	 * The icon that {@code fabric.mod.json} names, which Mod Menu and OneConfig show, is part of the mod.
+	 */
+	private static void checkIcon() {
+		ModContainer mod = FabricLoader.getInstance().getModContainer(GameModeClient.MOD_ID).orElseThrow();
+		String icon = mod.getMetadata().getIconPath(512).orElseThrow(() -> new AssertionError("fabric.mod.json should name an icon"));
+		check(mod.findPath(icon).filter(Files::isRegularFile).isPresent(), "the icon " + icon + " should be part of the mod");
 	}
 
 	private static void checkDefaults(final GameModeConfig config, final String what) {

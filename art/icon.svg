@@ -1,0 +1,69 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1024" height="1024" fill="none"/>
+  <g transform="translate(0 50)">
+    <!-- hair clip: unchanged -->
+    <g transform="translate(600 120) rotate(20 130 58) scale(1.5)">
+    <path d="M28 57
+             C28 49, 28 42, 29 36
+             C31 27, 39 23, 48 27
+             C67 35, 89 43, 105 50
+             C115 54, 115 58, 105 62
+             C89 69, 67 78, 48 86
+             C39 90, 31 86, 29 77
+             C28 70, 28 64, 28 57
+             Z"
+          fill="#ff4fa0"/>
+    <path d="M104 16 L104 69
+             C104 108, 156 108, 156 69
+             L156 16"
+          fill="none"
+          stroke="#ff4fa0"
+          stroke-width="22"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+    <path d="M232 57
+             C232 49, 232 42, 231 36
+             C229 27, 221 23, 212 27
+             C193 35, 171 43, 155 50
+             C145 54, 145 58, 155 62
+             C171 69, 193 78, 212 86
+             C221 90, 229 86, 231 77
+             C232 70, 232 64, 232 57
+             Z"
+          fill="#ff4fa0"/>
+    </g>
+
+    <!-- game controller -->
+    <path d="M380 390
+             H644
+             C712 390, 752 430, 766 498
+             L800 640
+             C812 702, 760 744, 712 712
+             L636 650
+             H388
+             L312 712
+             C264 744, 212 702, 224 640
+             L258 498
+             C272 430, 312 390, 380 390
+             Z"
+          fill="none"
+          stroke="#ff4fa0"
+          stroke-width="50"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+
+    <!-- d-pad -->
+    <g fill="#ff4fa0">
+      <rect x="358" y="449" width="44" height="132" rx="10"/>
+      <rect x="314" y="493" width="132" height="44" rx="10"/>
+    </g>
+
+    <!-- four buttons, one per game mode -->
+    <g fill="#ff4fa0">
+      <circle cx="644" cy="470" r="22"/>
+      <circle cx="689" cy="515" r="22"/>
+      <circle cx="644" cy="560" r="22"/>
+      <circle cx="599" cy="515" r="22"/>
+    </g>
+  </g>
+</svg>

@@ -25,6 +25,9 @@ public final class GameModeOneConfig extends Config implements GameModeSettings 
 	 */
 	private static final String FILE_NAME = GameModeClient.MOD_ID + "-oneconfig.json";
 
+	/** The mod icon, as named in {@code fabric.mod.json}, as a resource path for OneConfig's mod card. */
+	private static final String ICON_PATH = "/assets/" + GameModeClient.MOD_ID + "/icon.png";
+
 	/** The toggle on the mod's OneConfig card. While it is off, client game modes are turned off. */
 	@MasterToggle
 	public boolean enabled = SettingValues.DEFAULTS.enabled();
@@ -62,7 +65,7 @@ public final class GameModeOneConfig extends Config implements GameModeSettings 
 	public List<String> servers = new ArrayList<>(SettingValues.DEFAULTS.servers());
 
 	public GameModeOneConfig() {
-		super(FILE_NAME, GameModeClient.MOD_ID, Category.UTILITY);
+		super(FILE_NAME, ICON_PATH, GameModeClient.MOD_ID, Category.UTILITY);
 	}
 
 	/** The settings that apply in OneConfig mode, which turn client game modes off while the card's toggle is off. */
