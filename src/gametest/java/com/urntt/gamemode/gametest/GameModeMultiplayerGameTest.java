@@ -15,6 +15,7 @@ import static com.urntt.gamemode.gametest.GameTestSupport.typeCommand;
 import com.urntt.gamemode.ClientGameMode;
 import com.urntt.gamemode.GameModeClient;
 import com.urntt.gamemode.Scene;
+import com.urntt.gamemode.compat.OneConfigBridge;
 import com.urntt.gamemode.command.ClientGameModeCommands;
 import com.urntt.gamemode.config.ConfigMode;
 import com.urntt.gamemode.config.MultiplayerMode;
@@ -56,11 +57,60 @@ public final class GameModeMultiplayerGameTest implements FabricClientGameTest {
 			checkDisabledByDefault(context, server);
 			checkWhitelisted(context, server);
 			checkWithPermission(context, server);
+			if (OneConfigBridge.isAvailable()) {
+				checkOneConfigEverywhere(context, server);
+			}
 		}
 
 		configure(context, config -> {
 			config.setMultiplayerMode(MultiplayerMode.DISABLED);
 			config.setServers(List.of());
+		});
+	}
+
+	/**
+	 * In OneConfig mode there are no multiplayer rules: client game modes are off until OneConfig's toggle is on, and
+	 * then work on this server, which no whitelist names.
+	 */
+	private static void checkOneConfigEverywhere(final ClientGameTestContext context, final TestDedicatedServerContext server) {
+		configure(context, config -> {
+			config.setMode(ConfigMode.ONECONFIG);
+			config.setMultiplayerMode(MultiplayerMode.DISABLED);
+			config.setServers(List.of());
+		});
+		clearMessages(context);
+		typeCommand(context, "gamemode creative @c");
+		requireMessageWith(context, "message.gamemode.disabled");
+		check(clientGameMode(context) == null, "OneConfig's toggle should be off by default");
+
+		setOneConfigToggle(context, true);
+		clearMessages(context);
+		typeCommand(context, "gamemode creative @c");
+		requireMessageWith(context, ClientGameMode.SET_KEY);
+		checkClientUses(context, GameType.CREATIVE, "in OneConfig mode on a server no list names");
+		check(serverGameMode(server) == GameType.SURVIVAL, "the server should keep survival");
+		Scene scene = context.computeOnClient(client -> GameModeClient.controller().scene());
+		LOGGER.info("OneConfig mode with its toggle on allows client game modes on {}", scene);
+
+		setOneConfigToggle(context, false);
+		context.waitTick();
+		check(clientGameMode(context) == null, "turning OneConfig's toggle off should end the client game mode");
+		checkClientUses(context, GameType.SURVIVAL, "after turning OneConfig's toggle off");
+		configure(context, config -> config.setMode(ConfigMode.CUSTOM));
+	}
+
+	/**
+	 * Flips the toggle on the mod's OneConfig card. The tests cannot reference OneConfig's classes, so this sets the
+	 * field of the settings object OneConfig manages.
+	 */
+	private static void setOneConfigToggle(final ClientGameTestContext context, final boolean enabled) {
+		context.runOnClient(client -> {
+			Object settings = OneConfigBridge.settings().orElseThrow();
+			try {
+				settings.getClass().getField("enabled").setBoolean(settings, enabled);
+			} catch (ReflectiveOperationException e) {
+				throw new AssertionError("cannot set OneConfig's toggle", e);
+			}
 		});
 	}
 

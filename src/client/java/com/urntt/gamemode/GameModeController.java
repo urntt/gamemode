@@ -1,7 +1,8 @@
 package com.urntt.gamemode;
 
-import com.urntt.gamemode.config.GameModeConfig;
 import com.urntt.gamemode.config.GameModeSettings;
+import com.urntt.gamemode.config.MultiplayerRules;
+import java.util.function.Supplier;
 import net.minecraft.world.level.GameType;
 import org.jspecify.annotations.Nullable;
 
@@ -43,13 +44,16 @@ public final class GameModeController {
 		ENDED
 	}
 
-	private final GameModeConfig config;
+	private final Supplier<GameModeSettings> settings;
 	private Scene scene = Scene.NONE;
 	private @Nullable GameType clientGameMode;
 	private @Nullable GameType serverGameMode;
 
-	public GameModeController(final GameModeConfig config) {
-		this.config = config;
+	/**
+	 * @param settings the settings that apply right now, which change with the configuration mode
+	 */
+	public GameModeController(final Supplier<GameModeSettings> settings) {
+		this.settings = settings;
 	}
 
 	public Scene scene() {
@@ -104,7 +108,7 @@ public final class GameModeController {
 		if (this.clientGameMode == null) {
 			return ServerChange.NO_CLIENT_GAME_MODE;
 		}
-		if (this.config.effective().followServerChanges() && gameMode != previous) {
+		if (this.settings.get().followServerChanges() && gameMode != previous) {
 			this.clientGameMode = null;
 			return ServerChange.ENDED;
 		}
@@ -151,7 +155,7 @@ public final class GameModeController {
 	 * because it applies everywhere.
 	 */
 	public Availability availability() {
-		GameModeSettings settings = this.config.effective();
+		GameModeSettings settings = this.settings.get();
 		if (!settings.enabled()) {
 			return Availability.DISABLED;
 		}
@@ -162,22 +166,26 @@ public final class GameModeController {
 	 * Returns whether the multiplayer rules that apply allow client game modes in the current scene.
 	 */
 	public boolean isAllowed() {
-		return this.isAllowed(this.config.effective());
+		return this.isAllowed(this.settings.get());
 	}
 
+	/**
+	 * Settings without multiplayer rules, which is OneConfig's, allow every server.
+	 */
 	private boolean isAllowed(final GameModeSettings settings) {
+		MultiplayerRules rules = settings.multiplayerRules();
 		return switch (this.scene) {
 			case Scene.None none -> false;
 			case Scene.Singleplayer singleplayer -> true;
-			case Scene.Multiplayer multiplayer -> switch (settings.multiplayerMode()) {
+			case Scene.Multiplayer multiplayer -> rules == null || switch (rules.mode()) {
 				case DISABLED -> false;
-				case WHITELIST -> isListed(settings, multiplayer.address());
-				case BLACKLIST -> !isListed(settings, multiplayer.address());
+				case WHITELIST -> isListed(rules, multiplayer.address());
+				case BLACKLIST -> !isListed(rules, multiplayer.address());
 			};
 		};
 	}
 
-	private static boolean isListed(final GameModeSettings settings, final @Nullable String address) {
-		return address != null && settings.servers().stream().anyMatch(entry -> ServerAddresses.matches(entry, address));
+	private static boolean isListed(final MultiplayerRules rules, final @Nullable String address) {
+		return address != null && rules.servers().stream().anyMatch(entry -> ServerAddresses.matches(entry, address));
 	}
 }

@@ -10,11 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Mod icon.
 - A **Client Game Mode Switcher Key** setting, on by default. When off, the mod ignores the switcher key, and F3 + F5 works as in vanilla.
-- A configuration mode, the first button of the settings screen: **Disabled** turns client game modes off everywhere, **Custom** (the default) applies the settings on the screen, and **OneConfig** applies the settings registered with [OneConfig](https://modrinth.com/mod/oneconfig). OneConfig is optional, and its mode is only offered while it is installed; the screen then shows OneConfig's values greyed out and links to them.
+- A configuration mode, the first button of the settings screen: **Disabled** turns client game modes off everywhere, **Custom** applies the settings on the screen, and **OneConfig** lets [OneConfig](https://modrinth.com/mod/oneconfig) manage the mod. OneConfig is optional; while it is installed and no mode is picked, OneConfig mode applies, and Custom mode otherwise.
+- OneConfig mode: the mod's card in OneConfig turns client game modes on and off and is off by default; its page holds **Client Game Mode Switcher Key** and **Follow Server Changes**. There are no server rules in OneConfig: once on, client game modes apply in singleplayer and on every server, and OneConfig profiles keep different settings apart. The mod's own screen shows OneConfig's values greyed out and links to them.
 
 ### Changed
 
-- The settings screen only holds the mode, **Client Game Mode Switcher Key**, **Follow Server Changes**, the multiplayer mode and the server list. Outside custom mode, the settings are greyed out and show the values that apply.
+- The settings screen only holds the mode, **Client Game Mode Switcher Key**, **Follow Server Changes**, the multiplayer mode and the server list. Outside custom mode, the settings are greyed out and show the values that apply; in OneConfig mode, the multiplayer settings are hidden.
 - A configuration file from 1.0.0 keeps its other settings and starts in Disabled mode if the mod was turned off.
 
 ### Removed

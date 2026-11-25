@@ -36,7 +36,7 @@ public final class GameModeClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		config = GameModeConfig.load(GameModeConfig.defaultPath());
-		controller = new GameModeController(config);
+		controller = new GameModeController(config::effective);
 		clientGameMode = new ClientGameMode(controller);
 
 		KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "general"));

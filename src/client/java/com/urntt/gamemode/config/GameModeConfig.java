@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import net.fabricmc.loader.api.FabricLoader;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -62,15 +63,25 @@ public final class GameModeConfig implements GameModeSettings {
 		return config;
 	}
 
-	/** The mode stored in the file, which may name OneConfig even while OneConfig is not installed. */
-	public ConfigMode storedMode() {
+	/**
+	 * The mode the player chose, which may name OneConfig even while OneConfig is not installed, or {@code null} until
+	 * the player chooses one.
+	 */
+	public @Nullable ConfigMode storedMode() {
 		return this.settings.mode;
 	}
 
-	/** The mode that applies: OneConfig mode falls back to custom settings while OneConfig is not available. */
+	/**
+	 * The mode that applies. Until the player chooses one, OneConfig manages the mod while it is available. OneConfig
+	 * mode falls back to custom settings while OneConfig is not available.
+	 */
 	public ConfigMode effectiveMode() {
+		boolean oneConfig = OneConfigBridge.isAvailable();
 		ConfigMode mode = this.settings.mode;
-		return mode == ConfigMode.ONECONFIG && !OneConfigBridge.isAvailable() ? ConfigMode.CUSTOM : mode;
+		if (mode == null) {
+			return oneConfig ? ConfigMode.ONECONFIG : ConfigMode.CUSTOM;
+		}
+		return mode == ConfigMode.ONECONFIG && !oneConfig ? ConfigMode.CUSTOM : mode;
 	}
 
 	/** The settings that apply in the {@linkplain #effectiveMode() effective mode}. */
@@ -114,6 +125,10 @@ public final class GameModeConfig implements GameModeSettings {
 	}
 
 	@Override
+	public MultiplayerRules multiplayerRules() {
+		return new MultiplayerRules(this.settings.multiplayerMode, this.settings.servers);
+	}
+
 	public MultiplayerMode multiplayerMode() {
 		return this.settings.multiplayerMode;
 	}
@@ -123,7 +138,7 @@ public final class GameModeConfig implements GameModeSettings {
 		this.save();
 	}
 
-	@Override
+	/** The server list used by the whitelist and blacklist modes. */
 	public List<String> servers() {
 		return List.copyOf(this.settings.servers);
 	}
@@ -147,7 +162,7 @@ public final class GameModeConfig implements GameModeSettings {
 	 * The serialized form. Field initializers are the defaults, which also apply to keys missing from the file.
 	 */
 	private static final class Settings {
-		/** {@code null} only while loading a file without a mode, which {@link #normalized()} replaces. */
+		/** The mode the player chose, or {@code null} until then; Gson leaves it out of the file while it is. */
 		private @Nullable ConfigMode mode;
 		/**
 		 * The on/off state of version 1.0.0, which had no modes. Only read, to start such a file in Disabled mode if
@@ -156,20 +171,24 @@ public final class GameModeConfig implements GameModeSettings {
 		private @Nullable Boolean enabled;
 		private boolean switcherKey = SettingValues.DEFAULTS.switcherKey();
 		private boolean followServerChanges = SettingValues.DEFAULTS.followServerChanges();
-		private MultiplayerMode multiplayerMode = SettingValues.DEFAULTS.multiplayerMode();
-		private List<String> servers = new ArrayList<>(SettingValues.DEFAULTS.servers());
+		private MultiplayerMode multiplayerMode = defaultRules().mode();
+		private List<String> servers = new ArrayList<>(defaultRules().servers());
+
+		private static MultiplayerRules defaultRules() {
+			return Objects.requireNonNull(SettingValues.DEFAULTS.multiplayerRules());
+		}
 
 		/**
-		 * Picks the mode of a file without one, replaces values Gson could not map (unknown mode names, a missing
-		 * list) and tidies the server list.
+		 * Starts a 1.0.0 file whose mod was off in Disabled mode, replaces values Gson could not map (unknown mode
+		 * names, which count as no choice, a missing list) and tidies the server list.
 		 */
 		private Settings normalized() {
-			if (this.mode == null) {
-				this.mode = Boolean.FALSE.equals(this.enabled) ? ConfigMode.DISABLED : ConfigMode.CUSTOM;
+			if (this.mode == null && Boolean.FALSE.equals(this.enabled)) {
+				this.mode = ConfigMode.DISABLED;
 			}
 			this.enabled = null;
 			if (this.multiplayerMode == null) {
-				this.multiplayerMode = SettingValues.DEFAULTS.multiplayerMode();
+				this.multiplayerMode = defaultRules().mode();
 			}
 			this.servers = normalizedServers(this.servers);
 			return this;
@@ -179,7 +198,7 @@ public final class GameModeConfig implements GameModeSettings {
 	/**
 	 * Trims the entries of a server list and drops blank ones.
 	 */
-	public static List<String> normalizedServers(final @Nullable List<String> servers) {
+	private static List<String> normalizedServers(final @Nullable List<String> servers) {
 		List<String> entries = new ArrayList<>();
 		if (servers != null) {
 			for (String entry : servers) {

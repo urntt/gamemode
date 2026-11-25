@@ -6,7 +6,7 @@ A client-side Fabric mod for Minecraft: Java Edition that lets you change your g
 
 ## Warning
 
-**This mod is disabled in multiplayer by default. To use it in multiplayer, change the multiplayer mode in its settings.**
+**This mod is disabled in multiplayer by default. To use it in multiplayer, change the multiplayer mode in its settings, or, with OneConfig installed, turn the mod on in OneConfig, which then applies it on every server.**
 
 A client game mode is not a server game mode. The mod changes the game mode your client uses and nothing else. The server, including the integrated server of a singleplayer world, keeps your real game mode and checks everything your client does. This mod does not try to bypass any check or anti-cheat.
 
@@ -33,7 +33,7 @@ A client game mode is not a server game mode. The mod changes the game mode your
 
 ## Usage
 
-The mod is on by default in singleplayer and disabled on multiplayer servers. While a client game mode is active, the client uses it; otherwise the client uses the server's game mode, as in vanilla.
+Without OneConfig, the mod is on by default in singleplayer and disabled on multiplayer servers. With OneConfig installed, OneConfig manages it, and it is off until you turn it on there (see [Settings](#settings)). While a client game mode is active, the client uses it; otherwise the client uses the server's game mode, as in vanilla.
 
 ### Commands
 
@@ -55,7 +55,7 @@ F5 alone still changes the camera perspective, and F3 + F4 is still vanilla's sw
 A client game mode lasts until you choose the server's game mode again, and it is never saved. It also ends when:
 
 - the server changes your game mode, while **Follow Server Changes** is on (the default). The chat tells you. Respawning or changing dimension in the same game mode does not end it.
-- you switch to Disabled mode, turn off the mod's card in OneConfig mode, or the multiplayer settings rule out the server.
+- you switch to Disabled mode, turn off the mod's card in OneConfig mode, or the multiplayer settings of custom mode rule out the server.
 - you leave the world or the server.
 
 ### Key bindings
@@ -72,10 +72,12 @@ Open the settings screen from Mod Menu, or bind the **Open gamemode Settings** k
 | Mode | Effect |
 | --- | --- |
 | Disabled | Client game modes are turned off everywhere, and your client always uses the server's game mode. |
-| Custom (default) | The settings on this screen apply. |
-| OneConfig | The settings registered with OneConfig apply, and are changed in OneConfig. This screen shows them greyed out and links to them with **Open in OneConfig**. Turning off the mod's card in OneConfig turns client game modes off. Only offered when OneConfig is installed. |
+| Custom (default without OneConfig) | The settings on this screen apply. |
+| OneConfig (default with OneConfig) | OneConfig manages the mod. Only offered when OneConfig is installed. |
 
-If OneConfig mode is selected but OneConfig is later removed, the custom settings apply until you pick another mode.
+Until you pick a mode, OneConfig mode applies while OneConfig is installed, and Custom mode otherwise. If you pick OneConfig mode and later remove OneConfig, the custom settings apply until you pick another mode.
+
+In custom mode, these settings apply:
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -84,7 +86,9 @@ If OneConfig mode is selected but OneConfig is later removed, the custom setting
 | Multiplayer Mode | Disabled | **Disabled**: never allows client game modes on servers. **Whitelist**: allows them only on servers in the server list. **Blacklist**: allows them on all servers except those in the server list. |
 | Server List | Empty | The addresses the whitelist and blacklist modes use. |
 
-The custom settings are saved to `config/gamemode.json` as soon as you change them; OneConfig keeps its own in `config/gamemode-oneconfig.json`. A configuration file from version 1.0.0, which had an on/off state instead of modes, keeps its other settings and starts in Disabled mode if the mod was off.
+In OneConfig mode, the mod's card in OneConfig turns client game modes on and off; it is **off by default**. The mod's page in OneConfig holds **Client Game Mode Switcher Key** and **Follow Server Changes**, with the same defaults as above. There is no multiplayer mode or server list: once the card is on, client game modes apply in singleplayer and on every server. To use different settings on some servers, keep them in different OneConfig profiles and switch profiles. This screen shows OneConfig's values greyed out and links to them with **Open in OneConfig**.
+
+The custom settings are saved to `config/gamemode.json` as soon as you change them; OneConfig keeps its own (`gamemode-oneconfig.json`) with each profile. A configuration file from version 1.0.0, which had an on/off state instead of modes, keeps its other settings and starts in Disabled mode if the mod was off.
 
 The multiplayer mode is a hard limit: on a server it rules out, the client always uses the server's game mode, and the commands and the switcher only report that client game modes are disabled there. Joining another player's LAN world or a Realm counts as multiplayer.
 

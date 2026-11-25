@@ -13,6 +13,7 @@ import com.urntt.gamemode.command.ClientGameModeCommands;
 import com.urntt.gamemode.compat.OneConfigBridge;
 import com.urntt.gamemode.config.ConfigMode;
 import com.urntt.gamemode.config.GameModeConfig;
+import com.urntt.gamemode.config.GameModeSettings;
 import com.urntt.gamemode.config.MultiplayerMode;
 import com.urntt.gamemode.config.SettingValues;
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.loader.api.FabricLoader;
@@ -46,6 +48,7 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 		checkConfigFile(directory);
 		checkUpgradeFrom100(directory);
 		checkOneConfigFallback(directory);
+		checkNoMultiplayerRules();
 		checkCommandDetection();
 		checkSelection(directory);
 		checkServerChanges(directory);
@@ -75,7 +78,8 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 	}
 
 	private static void checkDefaults(final GameModeConfig config, final String what) {
-		check(config.storedMode() == ConfigMode.CUSTOM, what + ": the default mode should be custom, was " + config.storedMode());
+		check(config.storedMode() == null, what + ": no mode should be chosen by default, was " + config.storedMode());
+		check(config.effectiveMode() == defaultMode(), what + ": the default mode should be " + defaultMode() + ", was " + config.effectiveMode());
 		check(SettingValues.copyOf(config).equals(SettingValues.DEFAULTS), what + ": the custom settings should start at the defaults, were "
 				+ SettingValues.copyOf(config));
 		check(config.multiplayerMode() == MultiplayerMode.DISABLED, what + ": multiplayer should be disabled by default");
@@ -112,12 +116,12 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 	private static void checkConfigFile(final Path directory) {
 		Path defaults = directory.resolve("defaults.json");
 		checkDefaults(GameModeConfig.load(defaults), "a new configuration");
-		check(read(defaults).contains("\"mode\": \"custom\""), "a missing config file should be created with the mode");
+		check(!read(defaults).contains("\"mode\""), "a new config file should not choose a mode: " + read(defaults));
 
 		Path partial = directory.resolve("partial.json");
 		write(partial, "{\"mode\": \"bogus\", \"multiplayerMode\": \"bogus\", \"servers\": [\" a.example.com \", \"\"]}");
 		GameModeConfig config = GameModeConfig.load(partial);
-		check(config.storedMode() == ConfigMode.CUSTOM, "an unknown mode should fall back to custom");
+		check(config.storedMode() == null, "an unknown mode should count as no choice");
 		check(config.followServerChanges() && config.switcherKey(), "missing settings should get their defaults");
 		check(config.multiplayerMode() == MultiplayerMode.DISABLED, "an unknown multiplayer mode should fall back to disabled");
 		check(config.servers().equals(List.of("a.example.com")), "entries should be trimmed and blanks dropped");
@@ -156,12 +160,17 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 
 		Path on = directory.resolve("upgrade-on.json");
 		write(on, "{\"enabled\": true, \"multiplayerMode\": \"disabled\"}");
-		check(GameModeConfig.load(on).storedMode() == ConfigMode.CUSTOM, "a 1.0.0 file with the mod on should start in custom mode");
+		check(GameModeConfig.load(on).storedMode() == null, "a 1.0.0 file with the mod on should start without a chosen mode");
+	}
+
+	/** OneConfig manages the mod by default while it is installed; otherwise the custom settings do. */
+	private static ConfigMode defaultMode() {
+		return OneConfigBridge.isAvailable() ? ConfigMode.ONECONFIG : ConfigMode.CUSTOM;
 	}
 
 	/**
-	 * OneConfig mode applies only while OneConfig is installed; otherwise the custom settings apply and the stored
-	 * mode is kept until the player picks another.
+	 * A chosen OneConfig mode applies only while OneConfig is installed; otherwise the custom settings apply and the
+	 * stored mode is kept until the player picks another. A chosen custom mode stays custom with OneConfig installed.
 	 */
 	private static void checkOneConfigFallback(final Path directory) {
 		Path path = directory.resolve("oneconfig.json");
@@ -179,6 +188,32 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 
 		config.setMode(ConfigMode.DISABLED);
 		check(SettingValues.copyOf(config.effective()).equals(SettingValues.DISABLED), "Disabled mode should apply the disabled settings");
+		config.setMode(ConfigMode.CUSTOM);
+		check(config.effectiveMode() == ConfigMode.CUSTOM && config.effective() == config, "a chosen custom mode should stay custom");
+	}
+
+	/**
+	 * Settings without multiplayer rules, like OneConfig's, are off until enabled, and then allow singleplayer and
+	 * every server.
+	 */
+	private static void checkNoMultiplayerRules() {
+		AtomicReference<GameModeSettings> settings = new AtomicReference<>(SettingValues.ONECONFIG_DEFAULTS);
+		GameModeController controller = new GameModeController(settings::get);
+		controller.onLogin(GameType.SURVIVAL);
+		controller.onJoin(Scene.SINGLEPLAYER);
+		check(controller.availability() == Availability.DISABLED, "OneConfig's settings should be off by default");
+		controller.onJoin(SERVER_A);
+		check(controller.availability() == Availability.DISABLED, "OneConfig's settings should be off by default on a server");
+
+		settings.set(new SettingValues(true, true, true, null));
+		check(controller.availability() == Availability.AVAILABLE, "settings without multiplayer rules should allow every server");
+		check(controller.select(GameType.CREATIVE) == Selection.CLIENT, "settings without multiplayer rules should allow a client game mode");
+		controller.onJoin(UNKNOWN_SERVER);
+		check(controller.availability() == Availability.AVAILABLE, "settings without multiplayer rules should allow an unknown server");
+		controller.onJoin(Scene.SINGLEPLAYER);
+		check(controller.availability() == Availability.AVAILABLE, "settings without multiplayer rules should allow singleplayer");
+		controller.onDisconnect();
+		check(controller.availability() == Availability.BLOCKED, "nothing should be available outside a world");
 	}
 
 	/**
@@ -198,7 +233,9 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 
 	private static void checkSelection(final Path directory) {
 		GameModeConfig config = GameModeConfig.load(directory.resolve("selection.json"));
-		GameModeController controller = new GameModeController(config);
+		// Fresh files leave the mode to OneConfig while it is installed; these checks are about the custom settings.
+		config.setMode(ConfigMode.CUSTOM);
+		GameModeController controller = new GameModeController(config::effective);
 		check(controller.availability() == Availability.BLOCKED, "nothing should be available outside a world");
 
 		controller.onLogin(GameType.SURVIVAL);
@@ -227,7 +264,9 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 
 	private static void checkServerChanges(final Path directory) {
 		GameModeConfig config = GameModeConfig.load(directory.resolve("server-changes.json"));
-		GameModeController controller = new GameModeController(config);
+		// Fresh files leave the mode to OneConfig while it is installed; these checks are about the custom settings.
+		config.setMode(ConfigMode.CUSTOM);
+		GameModeController controller = new GameModeController(config::effective);
 		controller.onLogin(GameType.SURVIVAL);
 		controller.onJoin(Scene.SINGLEPLAYER);
 
@@ -252,7 +291,9 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 
 	private static void checkDisabledMode(final Path directory) {
 		GameModeConfig config = GameModeConfig.load(directory.resolve("disabled.json"));
-		GameModeController controller = new GameModeController(config);
+		// Fresh files leave the mode to OneConfig while it is installed; these checks are about the custom settings.
+		config.setMode(ConfigMode.CUSTOM);
+		GameModeController controller = new GameModeController(config::effective);
 		controller.onLogin(GameType.SURVIVAL);
 		controller.onJoin(Scene.SINGLEPLAYER);
 		controller.select(GameType.CREATIVE);
@@ -274,7 +315,9 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 
 	private static void checkMultiplayerRules(final Path directory) {
 		GameModeConfig config = GameModeConfig.load(directory.resolve("rules.json"));
-		GameModeController controller = new GameModeController(config);
+		// Fresh files leave the mode to OneConfig while it is installed; these checks are about the custom settings.
+		config.setMode(ConfigMode.CUSTOM);
+		GameModeController controller = new GameModeController(config::effective);
 
 		controller.onLogin(GameType.SURVIVAL);
 		controller.onJoin(SERVER_A);

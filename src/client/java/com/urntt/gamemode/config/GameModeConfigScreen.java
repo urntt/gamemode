@@ -44,8 +44,13 @@ public final class GameModeConfigScreen extends OptionsSubScreen {
 		this.list.addHeader(Component.translatable(SettingKeys.SERVER_CHANGES));
 		this.list.addBig(this.toggle(SettingKeys.FOLLOW_SERVER_CHANGES, shown.followServerChanges(), editable, this.config::setFollowServerChanges));
 
+		MultiplayerRules rules = shown.multiplayerRules();
+		if (rules == null) {
+			// OneConfig has no multiplayer rules; its profiles take their place.
+			return;
+		}
 		this.list.addHeader(Component.translatable(SettingKeys.MULTIPLAYER));
-		CycleButton<MultiplayerMode> multiplayerMode = CycleButton.builder(MultiplayerMode::label, shown.multiplayerMode())
+		CycleButton<MultiplayerMode> multiplayerMode = CycleButton.builder(MultiplayerMode::label, rules.mode())
 				.withValues(MultiplayerMode.values())
 				.withTooltip(value -> Tooltip.create(value.description()))
 				.create(Component.translatable(SettingKeys.MULTIPLAYER_MODE), (button, value) -> this.config.setMultiplayerMode(value));

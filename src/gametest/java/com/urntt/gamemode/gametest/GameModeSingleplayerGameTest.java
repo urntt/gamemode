@@ -56,6 +56,8 @@ public final class GameModeSingleplayerGameTest implements FabricClientGameTest 
 	@Override
 	public void runTest(final ClientGameTestContext context) {
 		listenForMessages(context);
+		// These checks are about the custom settings; with OneConfig installed, OneConfig would manage the mod.
+		configure(context, config -> config.setMode(ConfigMode.CUSTOM));
 		KeyMapping openSettingsKey = bindKey(context, GameModeClient.OPEN_SETTINGS_KEY_NAME, "key.keyboard.k");
 		try (TestSingleplayerContext singleplayer = context.worldBuilder().create()) {
 			singleplayer.getConnection().waitForChunksRender();

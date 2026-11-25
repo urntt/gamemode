@@ -20,9 +20,6 @@ public final class SettingKeys {
 
 	public static final String MULTIPLAYER = PREFIX + "multiplayer";
 	public static final String MULTIPLAYER_MODE = PREFIX + "multiplayer_mode";
-	public static final String MULTIPLAYER_MODE_DISABLED = MULTIPLAYER_MODE + ".disabled";
-	public static final String MULTIPLAYER_MODE_WHITELIST = MULTIPLAYER_MODE + ".whitelist";
-	public static final String MULTIPLAYER_MODE_BLACKLIST = MULTIPLAYER_MODE + ".blacklist";
 	public static final String SERVERS = PREFIX + "servers";
 	public static final String EDIT_SERVERS = PREFIX + "edit_servers";
 	public static final String SERVERS_HINT = SERVERS + ".hint";

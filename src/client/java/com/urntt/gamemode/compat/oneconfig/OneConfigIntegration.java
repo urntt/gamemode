@@ -20,7 +20,7 @@ public final class OneConfigIntegration implements ConfigEntrypoint {
 		context.originalScreen(() -> GameModeConfigScreen.open(Minecraft.getInstance()));
 
 		// OneConfig identifies a mod's page by its config tree, whose id comes from the config file name.
-		OneConfigBridge.register(config::applied, () -> OneConfigUI.open(
+		OneConfigBridge.register(() -> config, () -> OneConfigUI.open(
 				new OneConfigDestination.ModConfig(new ModConfigTarget(config.getTree().getID(), null))));
 	}
 }

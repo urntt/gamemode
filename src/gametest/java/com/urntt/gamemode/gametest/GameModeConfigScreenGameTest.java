@@ -13,6 +13,7 @@ import com.urntt.gamemode.config.ConfigMode;
 import com.urntt.gamemode.config.GameModeConfig;
 import com.urntt.gamemode.config.GameModeConfigScreen;
 import com.urntt.gamemode.config.MultiplayerMode;
+import com.urntt.gamemode.config.MultiplayerRules;
 import com.urntt.gamemode.config.ServerListScreen;
 import com.urntt.gamemode.config.SettingKeys;
 import com.urntt.gamemode.config.SettingValues;
@@ -45,19 +46,20 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 public final class GameModeConfigScreenGameTest implements FabricClientGameTest {
 	/** A custom multiplayer mode that differs from the default, to show which settings apply in each mode. */
 	private static final MultiplayerMode CUSTOM_MULTIPLAYER_MODE = MultiplayerMode.WHITELIST;
+	private static final MultiplayerRules DEFAULT_RULES = Objects.requireNonNull(SettingValues.DEFAULTS.multiplayerRules());
 
 	@Override
 	public void runTest(final ClientGameTestContext context) {
 		GameModeConfig config = GameModeClient.config();
-		check(config.storedMode() == ConfigMode.CUSTOM, "the default mode should be custom, was " + config.storedMode());
 		boolean oneConfigInstalled = FabricLoader.getInstance().isModLoaded(OneConfigBridge.MOD_ID);
+		ConfigMode defaultMode = oneConfigInstalled ? ConfigMode.ONECONFIG : ConfigMode.CUSTOM;
+		check(config.storedMode() == null, "no mode should be chosen by default, was " + config.storedMode());
+		check(config.effectiveMode() == defaultMode, "the default mode should be " + defaultMode + ", was " + config.effectiveMode());
 
-		context.setScreen(() -> new GameModeConfigScreen(null));
-		parkCursor(context);
-		check(settingsActive(context), "settings should be editable in custom mode");
-		checkModeCycle(context, config, oneConfigInstalled);
+		checkModeCycle(context, config, defaultMode, oneConfigInstalled);
 
 		configure(context, c -> {
+			c.setMode(ConfigMode.CUSTOM);
 			c.setMultiplayerMode(MultiplayerMode.WHITELIST);
 			c.setServers(List.of("mc.example.com", "192.168.1.5"));
 		});
@@ -67,56 +69,69 @@ public final class GameModeConfigScreenGameTest implements FabricClientGameTest 
 		}
 		switchLanguage(context, "en_us");
 		configure(context, c -> {
-			c.setMultiplayerMode(SettingValues.DEFAULTS.multiplayerMode());
-			c.setServers(SettingValues.DEFAULTS.servers());
+			c.setMultiplayerMode(DEFAULT_RULES.mode());
+			c.setServers(DEFAULT_RULES.servers());
 		});
 		context.setScreen(() -> null);
 	}
 
 	/**
-	 * Clicks the mode button through every offered mode and back to custom. OneConfig mode is only offered while
-	 * OneConfig is installed.
+	 * Clicks the mode button through every offered mode, starting from and ending at the default mode. OneConfig mode
+	 * is only offered while OneConfig is installed.
 	 */
-	private static void checkModeCycle(final ClientGameTestContext context, final GameModeConfig config, final boolean oneConfigInstalled) {
+	private static void checkModeCycle(final ClientGameTestContext context, final GameModeConfig config, final ConfigMode defaultMode,
+			final boolean oneConfigInstalled) {
 		List<ConfigMode> modes = oneConfigInstalled
-				? List.of(ConfigMode.CUSTOM, ConfigMode.ONECONFIG, ConfigMode.DISABLED)
-				: List.of(ConfigMode.CUSTOM, ConfigMode.DISABLED);
+				? List.of(ConfigMode.DISABLED, ConfigMode.CUSTOM, ConfigMode.ONECONFIG)
+				: List.of(ConfigMode.DISABLED, ConfigMode.CUSTOM);
 		configure(context, c -> c.setMultiplayerMode(CUSTOM_MULTIPLAYER_MODE));
 		context.setScreen(() -> new GameModeConfigScreen(null));
 		// The option list positions its widgets while rendering, so let it render before clicking.
 		context.waitTicks(2);
-		check(shownMultiplayerMode(context) == CUSTOM_MULTIPLAYER_MODE, "custom mode should show the custom multiplayer mode");
+		checkScreenFor(context, config, defaultMode);
 
+		int start = modes.indexOf(defaultMode);
 		for (int i = 1; i <= modes.size(); i++) {
-			ConfigMode expected = modes.get(i % modes.size());
+			ConfigMode expected = modes.get((start + i) % modes.size());
 			clickWidget(context, widget -> widget instanceof CycleButton<?> cycle && cycle.getValue() instanceof ConfigMode);
 			context.waitForScreen(GameModeConfigScreen.class);
 			check(config.storedMode() == expected, "the mode button should switch to " + expected + ", was " + config.storedMode());
 			check(GameModeConfig.load(GameModeConfig.defaultPath()).storedMode() == expected, "the " + expected + " mode should be saved");
-			if (expected == ConfigMode.CUSTOM) {
-				check(settingsActive(context), "settings should be editable again in custom mode");
-				check(SettingValues.copyOf(GameModeClient.settings()).equals(SettingValues.copyOf(config)), "custom mode should apply the custom settings");
-			} else {
-				check(settingsInactive(context), "settings should be greyed out in " + expected + " mode");
-			}
 			parkCursor(context);
 			context.takeScreenshot("gamemode-config-" + expected.name().toLowerCase(Locale.ROOT));
-
-			if (expected == ConfigMode.DISABLED) {
-				check(SettingValues.copyOf(GameModeClient.settings()).equals(SettingValues.DISABLED), "Disabled mode should apply the disabled settings");
-				check(shownMultiplayerMode(context) == SettingValues.DISABLED.multiplayerMode(), "Disabled mode should show the values that apply");
-			} else if (expected == ConfigMode.ONECONFIG) {
-				checkOneConfigMode(context);
-			}
+			checkScreenFor(context, config, expected);
 		}
-		configure(context, c -> c.setMultiplayerMode(SettingValues.DEFAULTS.multiplayerMode()));
+		configure(context, c -> c.setMultiplayerMode(DEFAULT_RULES.mode()));
 	}
 
-	/** In OneConfig mode, OneConfig's settings apply and the screen shows them and links to the mod's OneConfig page. */
+	/**
+	 * Checks that the open screen shows the settings of {@code mode}: editable in custom mode, greyed out with the
+	 * values that apply otherwise, and without the multiplayer section in OneConfig mode.
+	 */
+	private static void checkScreenFor(final ClientGameTestContext context, final GameModeConfig config, final ConfigMode mode) {
+		switch (mode) {
+			case CUSTOM -> {
+				checkSettings(context, true, true);
+				check(SettingValues.copyOf(GameModeClient.settings()).equals(SettingValues.copyOf(config)), "custom mode should apply the custom settings");
+				check(shownMultiplayerMode(context) == CUSTOM_MULTIPLAYER_MODE, "custom mode should show the custom multiplayer mode");
+			}
+			case DISABLED -> {
+				checkSettings(context, false, true);
+				check(SettingValues.copyOf(GameModeClient.settings()).equals(SettingValues.DISABLED), "Disabled mode should apply the disabled settings");
+				check(shownMultiplayerMode(context) == DEFAULT_RULES.mode(), "Disabled mode should show the values that apply");
+			}
+			case ONECONFIG -> checkOneConfigMode(context);
+		}
+	}
+
+	/**
+	 * In OneConfig mode, OneConfig's settings apply: off by default, without multiplayer rules. The screen shows its
+	 * feature settings greyed out, no multiplayer section, and links to the mod's OneConfig page.
+	 */
 	private static void checkOneConfigMode(final ClientGameTestContext context) {
-		check(SettingValues.copyOf(GameModeClient.settings()).equals(SettingValues.DEFAULTS),
-				"OneConfig mode should apply OneConfig's settings, which start at the defaults, instead of the custom ones");
-		check(shownMultiplayerMode(context) == SettingValues.DEFAULTS.multiplayerMode(), "OneConfig mode should show OneConfig's values");
+		check(SettingValues.copyOf(GameModeClient.settings()).equals(SettingValues.ONECONFIG_DEFAULTS),
+				"OneConfig mode should apply OneConfig's settings, which start at their defaults, instead of the custom ones");
+		checkSettings(context, false, false);
 
 		clickWidget(context, widget -> widget instanceof Button && hasLabel(widget, SettingKeys.OPEN_ONECONFIG));
 		context.waitFor(client -> client.gui.screen() != null && !(client.gui.screen() instanceof GameModeConfigScreen));
@@ -174,23 +189,23 @@ public final class GameModeConfigScreenGameTest implements FabricClientGameTest 
 				.orElseThrow(() -> new AssertionError("multiplayer mode button not found")));
 	}
 
-	private static boolean settingsActive(final ClientGameTestContext context) {
-		return context.computeOnClient(client -> settingWidgets(client).stream().allMatch(widget -> widget.active));
+	/**
+	 * Checks that the settings are all editable or all greyed out, and that the multiplayer section is there or not.
+	 */
+	private static void checkSettings(final ClientGameTestContext context, final boolean active, final boolean multiplayer) {
+		List<Boolean> states = context.computeOnClient(client -> settingWidgets(client).stream().map(widget -> widget.active).toList());
+		int expected = multiplayer ? 4 : 2;
+		check(states.size() == expected, "expected " + expected + " setting widgets, found " + states.size());
+		check(states.stream().allMatch(state -> state == active), "the settings should all be " + (active ? "editable" : "greyed out") + ": " + states);
 	}
 
-	private static boolean settingsInactive(final ClientGameTestContext context) {
-		return context.computeOnClient(client -> settingWidgets(client).stream().noneMatch(widget -> widget.active));
-	}
-
-	/** Every widget that edits a setting: the two toggles, the multiplayer mode and the server list button. */
+	/** Every widget that edits a setting: the two toggles and, with multiplayer rules, the multiplayer mode and the server list button. */
 	private static List<AbstractWidget> settingWidgets(final Minecraft client) {
-		List<AbstractWidget> settings = widgets(client).stream()
+		return widgets(client).stream()
 				.filter(widget -> widget instanceof CycleButton<?> cycle
 						&& (cycle.getValue() instanceof Boolean || cycle.getValue() instanceof MultiplayerMode)
 						|| widget instanceof Button && hasLabel(widget, SettingKeys.EDIT_SERVERS))
 				.toList();
-		check(settings.size() == 4, "expected the two toggles, the multiplayer mode and the server list button, found " + settings.size());
-		return settings;
 	}
 
 	/**

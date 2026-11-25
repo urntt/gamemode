@@ -1,6 +1,6 @@
 package com.urntt.gamemode.config;
 
-import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The values the mod reads. Implemented by the mod's own configuration, by the OneConfig integration and by the
@@ -16,9 +16,9 @@ public interface GameModeSettings {
 	/** Whether a change of the server's game mode ends the client game mode. */
 	boolean followServerChanges();
 
-	/** On which multiplayer servers client game modes are allowed. */
-	MultiplayerMode multiplayerMode();
-
-	/** The server list used by the whitelist and blacklist modes. */
-	List<String> servers();
+	/**
+	 * On which multiplayer servers client game modes are allowed, or {@code null} if every server is: OneConfig has
+	 * no multiplayer rules, because its profiles take their place.
+	 */
+	@Nullable MultiplayerRules multiplayerRules();
 }
