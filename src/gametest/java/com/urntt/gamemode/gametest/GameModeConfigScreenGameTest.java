@@ -182,14 +182,14 @@ public final class GameModeConfigScreenGameTest implements FabricClientGameTest 
 		return context.computeOnClient(client -> settingWidgets(client).stream().noneMatch(widget -> widget.active));
 	}
 
-	/** Every widget that edits a setting: the toggle, the multiplayer mode and the server list button. */
+	/** Every widget that edits a setting: the two toggles, the multiplayer mode and the server list button. */
 	private static List<AbstractWidget> settingWidgets(final Minecraft client) {
 		List<AbstractWidget> settings = widgets(client).stream()
 				.filter(widget -> widget instanceof CycleButton<?> cycle
 						&& (cycle.getValue() instanceof Boolean || cycle.getValue() instanceof MultiplayerMode)
 						|| widget instanceof Button && hasLabel(widget, SettingKeys.EDIT_SERVERS))
 				.toList();
-		check(settings.size() == 3, "expected the toggle, the multiplayer mode and the server list button, found " + settings.size());
+		check(settings.size() == 4, "expected the two toggles, the multiplayer mode and the server list button, found " + settings.size());
 		return settings;
 	}
 

@@ -94,6 +94,16 @@ public final class GameModeConfig implements GameModeSettings {
 	}
 
 	@Override
+	public boolean switcherKey() {
+		return this.settings.switcherKey;
+	}
+
+	public void setSwitcherKey(final boolean switcherKey) {
+		this.settings.switcherKey = switcherKey;
+		this.save();
+	}
+
+	@Override
 	public boolean followServerChanges() {
 		return this.settings.followServerChanges;
 	}
@@ -144,6 +154,7 @@ public final class GameModeConfig implements GameModeSettings {
 		 * the mod was off; Gson leaves it out of the file once it is {@code null}.
 		 */
 		private @Nullable Boolean enabled;
+		private boolean switcherKey = SettingValues.DEFAULTS.switcherKey();
 		private boolean followServerChanges = SettingValues.DEFAULTS.followServerChanges();
 		private MultiplayerMode multiplayerMode = SettingValues.DEFAULTS.multiplayerMode();
 		private List<String> servers = new ArrayList<>(SettingValues.DEFAULTS.servers());

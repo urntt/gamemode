@@ -9,11 +9,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Mod icon.
+- A **Client Game Mode Switcher Key** setting, on by default. When off, the mod ignores the switcher key, and F3 + F5 works as in vanilla.
 - A configuration mode, the first button of the settings screen: **Disabled** turns client game modes off everywhere, **Custom** (the default) applies the settings on the screen, and **OneConfig** applies the settings registered with [OneConfig](https://modrinth.com/mod/oneconfig). OneConfig is optional, and its mode is only offered while it is installed; the screen then shows OneConfig's values greyed out and links to them.
 
 ### Changed
 
-- The settings screen only holds the mode, **Follow Server Changes**, the multiplayer mode and the server list. Outside custom mode, the settings are greyed out and show the values that apply.
+- The settings screen only holds the mode, **Client Game Mode Switcher Key**, **Follow Server Changes**, the multiplayer mode and the server list. Outside custom mode, the settings are greyed out and show the values that apply.
 - A configuration file from 1.0.0 keeps its other settings and starts in Disabled mode if the mod was turned off.
 
 ### Removed

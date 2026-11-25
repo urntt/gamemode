@@ -33,6 +33,15 @@ public final class GameModeOneConfig extends Config implements GameModeSettings 
 	public boolean enabled = SettingValues.DEFAULTS.enabled();
 
 	@Switch(
+			title = SettingKeys.SWITCHER_KEY,
+			titleTranslation = true,
+			description = SettingKeys.SWITCHER_KEY + SettingKeys.DESCRIPTION,
+			descriptionTranslation = true,
+			subcategory = SettingKeys.SHORTCUTS,
+			subcategoryTranslation = true)
+	public boolean switcherKey = SettingValues.DEFAULTS.switcherKey();
+
+	@Switch(
 			title = SettingKeys.FOLLOW_SERVER_CHANGES,
 			titleTranslation = true,
 			description = SettingKeys.FOLLOW_SERVER_CHANGES + SettingKeys.DESCRIPTION,
@@ -76,6 +85,11 @@ public final class GameModeOneConfig extends Config implements GameModeSettings 
 	@Override
 	public boolean enabled() {
 		return this.enabled;
+	}
+
+	@Override
+	public boolean switcherKey() {
+		return this.switcherKey;
 	}
 
 	@Override

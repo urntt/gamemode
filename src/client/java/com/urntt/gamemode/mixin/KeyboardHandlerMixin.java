@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.At;
  * modifier (F3) is held. Like vanilla's game mode switcher key (F4), it counts as a debug action, so the key's own
  * binding, the camera perspective for the default F5, does not also fire, and releasing the modifier does not toggle
  * the debug overlay. Where client game modes are not available, it shows why in the chat, as vanilla does without
- * permission.
+ * permission. While the "switcher key" setting is off, the mod leaves the key to vanilla.
  */
 @Mixin(KeyboardHandler.class)
 public abstract class KeyboardHandlerMixin {
@@ -33,7 +33,8 @@ public abstract class KeyboardHandlerMixin {
 
 	@ModifyReturnValue(method = "handleDebugKeys", at = @At("RETURN"))
 	private boolean gamemode$openClientGameModeSwitcher(final boolean handled, @Local(argsOnly = true) final KeyEvent event) {
-		if (!GameModeClient.switcherKey().matches(event) || this.minecraft.level == null || this.minecraft.gui.screen() != null) {
+		if (!GameModeClient.settings().switcherKey() || !GameModeClient.switcherKey().matches(event)
+				|| this.minecraft.level == null || this.minecraft.gui.screen() != null) {
 			return handled;
 		}
 		Component unavailable = GameModeClient.unavailableMessage(GameModeClient.controller().availability());

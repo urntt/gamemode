@@ -38,6 +38,9 @@ public final class GameModeConfigScreen extends OptionsSubScreen {
 			this.list.addBig(Button.builder(Component.translatable(SettingKeys.OPEN_ONECONFIG), button -> OneConfigBridge.openOneConfig()).build());
 		}
 
+		this.list.addHeader(Component.translatable(SettingKeys.SHORTCUTS));
+		this.list.addBig(this.toggle(SettingKeys.SWITCHER_KEY, shown.switcherKey(), editable, this.config::setSwitcherKey));
+
 		this.list.addHeader(Component.translatable(SettingKeys.SERVER_CHANGES));
 		this.list.addBig(this.toggle(SettingKeys.FOLLOW_SERVER_CHANGES, shown.followServerChanges(), editable, this.config::setFollowServerChanges));
 

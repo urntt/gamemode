@@ -12,6 +12,9 @@ public final class SettingKeys {
 	public static final String ONECONFIG_MISSING = PREFIX + "mode.oneconfig.missing";
 	public static final String OPEN_ONECONFIG = PREFIX + "open_oneconfig";
 
+	public static final String SHORTCUTS = PREFIX + "shortcuts";
+	public static final String SWITCHER_KEY = PREFIX + "switcher_key";
+
 	public static final String SERVER_CHANGES = PREFIX + "server_changes";
 	public static final String FOLLOW_SERVER_CHANGES = PREFIX + "follow_server_changes";
 

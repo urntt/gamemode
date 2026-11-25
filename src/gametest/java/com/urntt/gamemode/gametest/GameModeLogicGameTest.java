@@ -118,7 +118,7 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 		write(partial, "{\"mode\": \"bogus\", \"multiplayerMode\": \"bogus\", \"servers\": [\" a.example.com \", \"\"]}");
 		GameModeConfig config = GameModeConfig.load(partial);
 		check(config.storedMode() == ConfigMode.CUSTOM, "an unknown mode should fall back to custom");
-		check(config.followServerChanges(), "a missing setting should get its default");
+		check(config.followServerChanges() && config.switcherKey(), "missing settings should get their defaults");
 		check(config.multiplayerMode() == MultiplayerMode.DISABLED, "an unknown multiplayer mode should fall back to disabled");
 		check(config.servers().equals(List.of("a.example.com")), "entries should be trimmed and blanks dropped");
 		check(read(partial).contains("\"followServerChanges\""), "missing settings should be written to the file");
@@ -129,9 +129,11 @@ public final class GameModeLogicGameTest implements FabricClientGameTest {
 		check(read(broken).equals("{ not json"), "an unreadable config file should be left untouched");
 
 		config.setFollowServerChanges(false);
+		config.setSwitcherKey(false);
 		config.setMode(ConfigMode.DISABLED);
 		GameModeConfig reloaded = GameModeConfig.load(partial);
-		check(!reloaded.followServerChanges() && reloaded.storedMode() == ConfigMode.DISABLED, "changes should be saved immediately");
+		check(!reloaded.followServerChanges() && !reloaded.switcherKey() && reloaded.storedMode() == ConfigMode.DISABLED,
+				"changes should be saved immediately");
 	}
 
 	/**

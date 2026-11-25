@@ -319,6 +319,35 @@ public final class GameModeSingleplayerGameTest implements FabricClientGameTest 
 		requireMessageWith(context, ClientGameMode.SET_KEY);
 		check(!context.computeOnClient(client -> client.debugEntries.isOverlayVisible()), "releasing F3 should not open the debug overlay");
 		typeCommand(context, "gamemode survival @c");
+
+		checkSwitcherKeyOff(context);
+	}
+
+	/**
+	 * With the switcher key setting off, the mod leaves F3 + F5 to vanilla: it changes the perspective, and releasing
+	 * F3 opens the debug overlay.
+	 */
+	private static void checkSwitcherKeyOff(final ClientGameTestContext context) {
+		context.runOnClient(client -> client.options.setCameraType(CameraType.FIRST_PERSON));
+		configure(context, config -> config.setSwitcherKey(false));
+		context.getInput().holdKey(options -> options.keyDebugModifier);
+		context.getInput().pressKey(GameModeClient.switcherKey());
+		context.waitTick();
+		// Checked before releasing F3, which would close and apply an open switcher.
+		check(context.computeOnClient(client -> client.gui.screen() == null), "with the switcher key off, F3 + F5 should not open the switcher");
+		context.getInput().releaseKey(options -> options.keyDebugModifier);
+		context.waitTick();
+		check(context.computeOnClient(client -> client.options.getCameraType() != CameraType.FIRST_PERSON),
+				"with the switcher key off, F3 + F5 should change the perspective as in vanilla");
+		check(clientGameMode(context) == null, "with the switcher key off, F3 + F5 should not set a client game mode");
+
+		context.runOnClient(client -> {
+			client.options.setCameraType(CameraType.FIRST_PERSON);
+			if (client.debugEntries.isOverlayVisible()) {
+				client.debugEntries.toggleDebugOverlay();
+			}
+		});
+		configure(context, config -> config.setSwitcherKey(true));
 	}
 
 	/**

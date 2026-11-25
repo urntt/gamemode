@@ -48,7 +48,7 @@ The mod is on by default in singleplayer and disabled on multiplayer servers. Wh
 
 Hold F3 and press F5 to open the client game mode switcher. It looks and works like vanilla's game mode switcher (F3 + F4): press F5 again to select the next game mode, or point at one with the mouse, and release F3 to switch. The selected game mode shows whether choosing it sets a client game mode or returns to the server's game mode.
 
-F5 alone still changes the camera perspective, and F3 + F4 is still vanilla's switcher, which needs permission and changes your real game mode.
+F5 alone still changes the camera perspective, and F3 + F4 is still vanilla's switcher, which needs permission and changes your real game mode. To use F3 + F5 as in vanilla, turn off **Client Game Mode Switcher Key** in the settings.
 
 ### When the client game mode ends
 
@@ -79,6 +79,7 @@ If OneConfig mode is selected but OneConfig is later removed, the custom setting
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
+| Client Game Mode Switcher Key | On | Whether the **Client Game Mode Switcher (with F3)** key opens the switcher. When off, the mod ignores the key, and F3 + F5 changes the perspective as in vanilla. |
 | Follow Server Changes | On | When the server changes your game mode, the client game mode ends and you use the server's new game mode. When off, the client game mode stays. |
 | Multiplayer Mode | Disabled | **Disabled**: never allows client game modes on servers. **Whitelist**: allows them only on servers in the server list. **Blacklist**: allows them on all servers except those in the server list. |
 | Server List | Empty | The addresses the whitelist and blacklist modes use. |
